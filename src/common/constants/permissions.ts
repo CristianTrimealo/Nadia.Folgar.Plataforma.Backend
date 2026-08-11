@@ -18,6 +18,8 @@ export const PERMISSIONS = {
   FACTURACION_READ: 'facturacion.read',
   FACTURACION_WRITE: 'facturacion.write',
   FACTURACION_APROBAR: 'facturacion.aprobar',
+  CATEDRAL_READ: 'catedral.read',
+  CATEDRAL_WRITE: 'catedral.write',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -40,6 +42,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<'admin' | 'contador' | 'cliente', 
       PERMISSIONS.IVA_TAREAS_WRITE,
       PERMISSIONS.FACTURACION_READ,
       PERMISSIONS.FACTURACION_WRITE,
+      PERMISSIONS.CATEDRAL_READ,
+      PERMISSIONS.CATEDRAL_WRITE,
     ],
     cliente: [PERMISSIONS.PORTAL_DOCUMENTOS_READ],
   };

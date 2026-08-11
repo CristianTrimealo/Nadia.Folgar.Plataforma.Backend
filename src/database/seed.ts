@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import 'reflect-metadata';
 import mongoose from 'mongoose';
 import * as argon2 from 'argon2';

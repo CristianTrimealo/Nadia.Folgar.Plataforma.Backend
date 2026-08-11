@@ -12,6 +12,7 @@ import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ClientesModule } from './clientes/clientes.module';
+import { CatedralModule } from './catedral/catedral.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -54,6 +55,7 @@ import { HealthModule } from './health/health.module';
     UsersModule,
     AuthModule,
     ClientesModule,
+    CatedralModule,
     HealthModule,
   ],
   providers: [
