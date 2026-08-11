@@ -60,7 +60,7 @@ flowchart TB
 | Sitio Web del Estudio | 018–022 | pendiente de decisión | No iniciado |
 | Portal de Clientes | 023–027 | portal-clientes/ | No iniciado |
 | Integración con Catedral | 028–032 | catedral/ | **Scaffold completo** — puerto `CatedralSyncPort` + adapter stub + log de auditoría; adapter real pendiente de FOLGAR-029 (vía de integración a definir con el cliente) |
-| Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | No iniciado |
+| Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | **Completo** — CRUD de vencimientos y reglas, motor `evaluarReglas()` con cron diario y deduplicación por NotificacionEnviada, puerto `MessagingProvider` con adapters stub (email/WhatsApp) |
 | Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | No iniciado — Riesgo Alto |
 | Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | No iniciado |
 | Factura Electrónica Automática | 052–058 | facturacion-electronica/ | No iniciado — Riesgo Alto |
