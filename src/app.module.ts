@@ -13,7 +13,9 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { CatedralModule } from './catedral/catedral.module';
+import { ExtractosIaModule } from './extractos-ia/extractos-ia.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
+import { PortalClientesModule } from './portal-clientes/portal-clientes.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -57,7 +59,9 @@ import { HealthModule } from './health/health.module';
     AuthModule,
     ClientesModule,
     CatedralModule,
+    ExtractosIaModule,
     NotificacionesModule,
+    PortalClientesModule,
     HealthModule,
   ],
   providers: [

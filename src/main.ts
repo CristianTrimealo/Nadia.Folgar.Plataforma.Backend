@@ -10,9 +10,19 @@ import { AppModule } from './app.module';
 import { parseCorsOrigins } from './config/cors-origins';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
-    bufferLogs: true,
-  });
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    // bodyLimit por encima del default de Fastify (1 MB): el módulo
+    // portal-clientes (FOLGAR-024) guarda documentos como base64 en el body
+    // del request mientras no hay storage de objetos real — ver la nota de
+    // alcance en `portal-clientes/schemas/documento.schema.ts`. 8 MB cubre
+    // el tope de archivo de `MAX_DOCUMENTO_BYTES` (5 MB) ya codificado en
+    // base64 (~+33%) más el resto del payload JSON.
+    new FastifyAdapter({ bodyLimit: 8 * 1024 * 1024 }),
+    {
+      bufferLogs: true,
+    },
+  );
 
   app.useLogger(app.get(Logger));
 

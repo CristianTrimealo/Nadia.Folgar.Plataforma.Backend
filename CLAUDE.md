@@ -55,10 +55,10 @@ flowchart TB
 |---|---|---|---|
 | Fundación Técnica | 001–006 | auth/, roles/, users/, clientes/ | **Completo** — auth JWT+refresh, permisos granulares, maestro Cliente con paginación, seed inicial |
 | Gestión de Proyecto / Mes 1 | 006, 078–081 | — (documentación) | No iniciado |
-| Procesador de Extractos con IA | 007–012 | extractos-ia/ | No iniciado |
+| Procesador de Extractos con IA | 007–012 | extractos-ia/ | **Scaffold + procesamiento síncrono** — puerto `AiExtractionPort` + adapter stub determinístico, subtotales por concepto, movimientos editables. Falta proveedor de IA real, testing con extractos reales (FOLGAR-011) |
 | Manual de Marca e Identidad Visual | 013–017 | — (diseño) | No iniciado |
 | Sitio Web del Estudio | 018–022 | pendiente de decisión | No iniciado |
-| Portal de Clientes | 023–027 | portal-clientes/ | No iniciado |
+| Portal de Clientes | 023–027 | portal-clientes/ | **Completo** — documentos/comunicados con scoping por rol forzado en el service (no solo en el controller), notificación al cliente vía `MessagingProvider`, archivo como base64 en Mongo (temporal, ver nota en el schema) |
 | Integración con Catedral | 028–032 | catedral/ | **Scaffold completo** — puerto `CatedralSyncPort` + adapter stub + log de auditoría; adapter real pendiente de FOLGAR-029 (vía de integración a definir con el cliente) |
 | Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | **Completo** — CRUD de vencimientos y reglas, motor `evaluarReglas()` con cron diario y deduplicación por NotificacionEnviada, puerto `MessagingProvider` con adapters stub (email/WhatsApp) |
 | Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | No iniciado — Riesgo Alto |
