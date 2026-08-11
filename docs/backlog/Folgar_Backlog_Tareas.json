@@ -1,0 +1,1737 @@
+{
+  "proyecto": "Estudio Contable Nadia Folgar — Sistema Operativo Automatizado",
+  "cliente": "Estudio Contable Nadia Folgar",
+  "responsable": "Novaptix (Cristian Domínguez)",
+  "metodologia": "Potencia Operativa — Ciclo 6M",
+  "fecha_kickoff": "2026-07-31",
+  "fecha_inicio_ciclo": "2026-08-01",
+  "fecha_fin_ciclo": "2027-01-31",
+  "inversion_total_usd": 9000,
+  "moneda": "USD",
+  "total_tarjetas": 81,
+  "total_horas_estimadas": 630,
+  "notas": "Backlog generado a partir de: Propuesta_de_servicio_Novaptix_NadiaFolgar.pdf, Procesos_Folgar_Estudio_Contable.docx y Analisis_Alcance_Roadmap_Folgar.docx, más las 5 definiciones de Kickoff (Alerta de Presentaciones, Generación de tareas IVA/ARBA/AGIP, Sistema de alertas de vencimientos, Manual de marca del estudio, Factura electrónica automática con prefactura). Los ítems de alto riesgo/complejidad identificados en el roadmap (ajuste por inflación, Ganancias/IVA/IIBB declarados, sueldos, integración ARBA, importación masiva ARCA→Catedral, Agrocentral) quedan fuera de este backlog por decisión de Kickoff, como candidatos a Ciclo 2.",
+  "tarjetas": [
+    {
+      "id": "FOLGAR-001",
+      "titulo": "Fork y adaptación del starter QTech al proyecto Folgar",
+      "descripcion": "Clonar la base NestJS/Fastify/MongoDB del proyecto Quiroga QTech como punto de partida, renombrar entidades y actualizar configuración base.",
+      "modulo": "Fundación Técnica (reuso QTech)",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-14",
+      "etiquetas": [
+        "Backend",
+        "Mes 1",
+        "Fundación",
+        "Reutiliza QTech"
+      ],
+      "checklist": [
+        "Clonar repo base QTech",
+        "Actualizar nombre de proyecto y variables .env",
+        "Adaptar configuración de conexión MongoDB",
+        "Documentar diferencias vs. base original"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-002",
+      "titulo": "Adaptar módulo de autenticación y roles (admin/contador/cliente)",
+      "descripcion": "Ajustar el módulo de auth/roles de QTech a los tres perfiles del estudio, redefiniendo permisos según la matriz de gobernanza del proyecto.",
+      "modulo": "Fundación Técnica (reuso QTech)",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-20",
+      "etiquetas": [
+        "Backend",
+        "Mes 1",
+        "Fundación",
+        "Reutiliza QTech"
+      ],
+      "checklist": [
+        "Revisar modelo de roles/permisos actual de QTech",
+        "Definir matriz de permisos admin/contador/cliente",
+        "Adaptar guards y decorators de NestJS",
+        "Tests unitarios de permisos por rol"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-003",
+      "titulo": "Aplicar tema visual Material UI con identidad de Folgar",
+      "descripcion": "Adaptar el theming de Material UI reutilizado de QTech con paleta placeholder, a migrar cuando se apruebe el Manual de Marca.",
+      "modulo": "Fundación Técnica (reuso QTech)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-09-15",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Fundación",
+        "Reutiliza QTech"
+      ],
+      "checklist": [
+        "Definir theme provider con paleta placeholder",
+        "Adaptar tipografías y componentes base",
+        "Revisar consistencia en formularios y listas",
+        "Dejar preparado el punto de reemplazo de paleta final"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-004",
+      "titulo": "Adaptar estructura de maestros (Cliente del Estudio)",
+      "descripcion": "Reutilizar la estructura de maestros de QTech para modelar la entidad Cliente del Estudio (CUIT, régimen fiscal, contacto, documentación asociada).",
+      "modulo": "Fundación Técnica (reuso QTech)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-05",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Fundación",
+        "Reutiliza QTech"
+      ],
+      "checklist": [
+        "Definir esquema de datos de Cliente del Estudio",
+        "Adaptar CRUD de maestros de QTech",
+        "Migrar validaciones de CUIT/régimen fiscal",
+        "Seed de datos de prueba"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-005",
+      "titulo": "Adaptar formularios y listados genéricos reutilizables",
+      "descripcion": "Portar los componentes de formularios dinámicos y listados con filtros/paginación de QTech al proyecto Folgar.",
+      "modulo": "Fundación Técnica (reuso QTech)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-09-10",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Fundación",
+        "Reutiliza QTech"
+      ],
+      "checklist": [
+        "Portar componente de formulario dinámico",
+        "Portar componente de listado con filtros y paginación",
+        "Adaptar validaciones a los nuevos maestros",
+        "Pruebas de UX con datos reales"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-006",
+      "titulo": "Definir arquitectura de solución y plan de implementación",
+      "descripcion": "Documento de arquitectura técnica del ciclo completo (módulos, integraciones, stack, dependencias entre módulos). Entregable comprometido de Mes 1.",
+      "modulo": "Gestión de Proyecto / Mes 1",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-25",
+      "etiquetas": [
+        "Documentación",
+        "Mes 1",
+        "Fundación"
+      ],
+      "checklist": [
+        "Diagrama de arquitectura general",
+        "Mapa de dependencias entre módulos",
+        "Plan de implementación por sprint",
+        "Revisión y validación interna"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-007",
+      "titulo": "Diseñar pipeline de ingestión de extractos bancarios PDF",
+      "descripcion": "Definir el flujo de carga, almacenamiento temporal y disparo del procesamiento IA para extractos bancarios en PDF.",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-08",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Definir endpoint de carga de PDF",
+        "Definir almacenamiento temporal seguro",
+        "Definir cola/disparador de procesamiento",
+        "Manejo de errores de carga"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-008",
+      "titulo": "Implementar extracción de movimientos con IA (prompt + parsing)",
+      "descripcion": "Desarrollar el servicio que envía el extracto a la API de IA y estructura la respuesta en movimientos y subtotales por concepto.",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-18",
+      "etiquetas": [
+        "Backend",
+        "IA",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Diseñar prompt de extracción estructurada",
+        "Definir esquema JSON de salida (movimiento, concepto, monto)",
+        "Implementar reintentos y validación de respuesta",
+        "Probar con extractos de al menos 3 bancos distintos"
+      ],
+      "estimacion_horas": 16
+    },
+    {
+      "id": "FOLGAR-009",
+      "titulo": "Pantalla de carga y visualización de resultados del extracto",
+      "descripcion": "Frontend donde el contador sube el PDF, ve el progreso del procesamiento y revisa el resumen de subtotales antes de usarlo en el asiento contable.",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-25",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Componente de carga (drag & drop)",
+        "Indicador de progreso de procesamiento",
+        "Tabla de resultados editables antes de confirmar",
+        "Exportar resumen (PDF/Excel)"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-010",
+      "titulo": "Manejo de errores y casos límite en extractos",
+      "descripcion": "Cubrir extractos escaneados, mal formateados o de bancos no soportados, con mensajes claros y opción de carga manual de respaldo.",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-02",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Detectar PDFs sin capa de texto (escaneados)",
+        "Evaluar fallback a OCR si aplica",
+        "Mensajes de error claros al usuario",
+        "Registro de casos fallidos para revisión"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-011",
+      "titulo": "Testing del Procesador de Extractos con datos reales del estudio",
+      "descripcion": "Validar precisión de la extracción con extractos reales de clientes del estudio antes de la entrega.",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-09",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Recolectar muestra de extractos reales con Nadia",
+        "Medir precisión de subtotales vs. control manual",
+        "Ajustar prompt según resultados",
+        "Documentar tasa de precisión alcanzada"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-012",
+      "titulo": "Documentación y capacitación del Procesador de Extractos",
+      "descripcion": "Guía de uso para el equipo del estudio y sesión de capacitación sobre el flujo completo (carga, revisión y uso en asiento).",
+      "modulo": "Procesador de Extractos con IA",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-14",
+      "etiquetas": [
+        "Documentación",
+        "Capacitación",
+        "Mes 2-5",
+        "Extractos-IA"
+      ],
+      "checklist": [
+        "Guía paso a paso con capturas",
+        "Sesión en vivo o video corto",
+        "FAQ de errores comunes",
+        "Feedback del equipo tras primera semana de uso"
+      ],
+      "estimacion_horas": 5
+    },
+    {
+      "id": "FOLGAR-013",
+      "titulo": "Relevamiento de identidad actual y brief de marca con Nadia",
+      "descripcion": "Sesión de brief para entender la identidad actual del estudio (logo, colores, tono de comunicación) y expectativas para el nuevo manual.",
+      "modulo": "Manual de Marca e Identidad Visual",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-28",
+      "etiquetas": [
+        "Diseño",
+        "Mes 1",
+        "Marca"
+      ],
+      "checklist": [
+        "Agendar sesión de brief con Nadia",
+        "Relevar materiales existentes (logo, tarjetas, redes)",
+        "Definir público objetivo y tono de marca",
+        "Documentar el brief"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-014",
+      "titulo": "Propuesta de paleta, tipografía y logo/ajuste de logo",
+      "descripcion": "Desarrollar 2-3 propuestas de identidad visual (paleta, tipografías, logo o refinamiento del existente) para el Estudio Folgar.",
+      "modulo": "Manual de Marca e Identidad Visual",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-20",
+      "etiquetas": [
+        "Diseño",
+        "Mes 2-5",
+        "Marca"
+      ],
+      "checklist": [
+        "Bocetos de logo/isotipo",
+        "Paleta de colores con códigos HEX",
+        "Selección tipográfica principal y secundaria",
+        "Presentación de 2-3 propuestas a Nadia"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-015",
+      "titulo": "Elaborar Manual de Marca (documento)",
+      "descripcion": "Documento formal con reglas de uso de logo, paleta, tipografía, tono de comunicación y ejemplos de aplicación.",
+      "modulo": "Manual de Marca e Identidad Visual",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-05",
+      "etiquetas": [
+        "Diseño",
+        "Documentación",
+        "Mes 2-5",
+        "Marca"
+      ],
+      "checklist": [
+        "Estructura del manual (logo, color, tipografía, tono, usos incorrectos)",
+        "Aplicar a mockups de papelería y firma de mail",
+        "Revisión y aprobación final con Nadia",
+        "Exportar en PDF de alta calidad"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-016",
+      "titulo": "Aplicar identidad de marca a piezas del estudio",
+      "descripcion": "Generar assets de aplicación inmediata: firma de email, plantilla de redes sociales, membrete digital para documentos.",
+      "modulo": "Manual de Marca e Identidad Visual",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-12",
+      "etiquetas": [
+        "Diseño",
+        "Mes 2-5",
+        "Marca"
+      ],
+      "checklist": [
+        "Firma de email HTML",
+        "Plantilla de post para redes (2-3 formatos)",
+        "Membrete digital para PDFs/informes",
+        "Entrega de assets en carpeta compartida"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-017",
+      "titulo": "Migrar theme del sistema con la identidad de marca aprobada",
+      "descripcion": "Actualizar el theme de Material UI del sistema con los colores y tipografías finales del Manual de Marca aprobado.",
+      "modulo": "Manual de Marca e Identidad Visual",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-19",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Marca"
+      ],
+      "checklist": [
+        "Actualizar variables de theme con paleta final",
+        "Actualizar logo en header/login/portal",
+        "Revisión visual de todas las pantallas",
+        "Aprobación final de Nadia"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-018",
+      "titulo": "Diseño de wireframes del sitio institucional",
+      "descripcion": "Definir estructura de páginas (home, servicios, equipo, contacto) orientada a captar nuevos clientes.",
+      "modulo": "Sitio Web del Estudio",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-15",
+      "etiquetas": [
+        "Diseño",
+        "Mes 2-5",
+        "Sitio-Web"
+      ],
+      "checklist": [
+        "Wireframe de home",
+        "Wireframe de página de servicios",
+        "Wireframe de contacto",
+        "Validar con Nadia antes de desarrollo"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-019",
+      "titulo": "Desarrollo frontend del sitio institucional",
+      "descripcion": "Implementación del sitio con la identidad visual aprobada, responsive y optimizado.",
+      "modulo": "Sitio Web del Estudio",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-02",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Sitio-Web"
+      ],
+      "checklist": [
+        "Maquetar home y páginas internas",
+        "Aplicar identidad de marca final",
+        "Responsive mobile/desktop",
+        "Optimización de performance básica"
+      ],
+      "estimacion_horas": 16
+    },
+    {
+      "id": "FOLGAR-020",
+      "titulo": "Formulario de contacto integrado al módulo de oportunidades",
+      "descripcion": "Cada consulta del sitio se registra automáticamente como oportunidad y se asigna según reglas definidas.",
+      "modulo": "Sitio Web del Estudio",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-06",
+      "etiquetas": [
+        "Backend",
+        "Frontend",
+        "Mes 2-5",
+        "Sitio-Web"
+      ],
+      "checklist": [
+        "Endpoint de recepción de formulario",
+        "Registro automático en módulo de oportunidades",
+        "Notificación al equipo del estudio",
+        "Test de envío end-to-end"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-021",
+      "titulo": "SEO básico y metadatos",
+      "descripcion": "Configurar metadatos, sitemap y buenas prácticas de SEO on-page para mejorar visibilidad orgánica.",
+      "modulo": "Sitio Web del Estudio",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Baja",
+      "fecha_limite": "2026-11-09",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Sitio-Web"
+      ],
+      "checklist": [
+        "Metadatos por página",
+        "Sitemap.xml y robots.txt",
+        "Datos estructurados schema.org LocalBusiness",
+        "Validar en Google Search Console"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-022",
+      "titulo": "Deploy y configuración de dominio del sitio",
+      "descripcion": "Publicar el sitio en hosting definitivo y configurar el DNS del dominio del estudio.",
+      "modulo": "Sitio Web del Estudio",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-11-11",
+      "etiquetas": [
+        "Infraestructura",
+        "Mes 2-5",
+        "Sitio-Web"
+      ],
+      "checklist": [
+        "Configurar hosting de frontend",
+        "Configurar DNS apuntando al dominio del estudio",
+        "Certificado SSL",
+        "Prueba de acceso público"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-023",
+      "titulo": "Diseño de flujo del Portal de Clientes",
+      "descripcion": "Definir qué puede ver y hacer cada cliente del estudio en su portal (documentación, estados, comunicados).",
+      "modulo": "Portal de Clientes",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-22",
+      "etiquetas": [
+        "Diseño",
+        "Mes 2-5",
+        "Portal-Clientes"
+      ],
+      "checklist": [
+        "Mapear información a exponer por cliente",
+        "Definir navegación y secciones",
+        "Wireframe de dashboard de cliente",
+        "Validar con Nadia"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-024",
+      "titulo": "Backend: API de documentos y estados por cliente",
+      "descripcion": "Endpoints para exponer documentación, estados de gestión y comunicados asociados a cada cliente del estudio.",
+      "modulo": "Portal de Clientes",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-03",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Portal-Clientes"
+      ],
+      "checklist": [
+        "Modelo de datos de documentos y comunicados",
+        "Endpoint de listado y descarga de documentos",
+        "Control de acceso por cliente (solo ve lo propio)",
+        "Tests de seguridad de acceso"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-025",
+      "titulo": "Frontend: Portal de Clientes (login y dashboard)",
+      "descripcion": "Interfaz donde el cliente accede a su documentación, estados y comunicados sin depender de WhatsApp.",
+      "modulo": "Portal de Clientes",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-10",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Portal-Clientes"
+      ],
+      "checklist": [
+        "Pantalla de login de cliente",
+        "Dashboard con documentos y comunicados",
+        "Descarga de archivos",
+        "Responsive para uso desde celular"
+      ],
+      "estimacion_horas": 14
+    },
+    {
+      "id": "FOLGAR-026",
+      "titulo": "Notificaciones in-app y por mail de nuevos comunicados",
+      "descripcion": "Avisar al cliente cuando hay un nuevo documento o comunicado disponible en su portal.",
+      "modulo": "Portal de Clientes",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-17",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Portal-Clientes"
+      ],
+      "checklist": [
+        "Trigger de notificación al subir documento",
+        "Plantilla de mail de aviso",
+        "Badge de novedades en el portal",
+        "Test de entrega de notificaciones"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-027",
+      "titulo": "Testing y UAT del Portal de Clientes con Nadia",
+      "descripcion": "Validación funcional con el equipo del estudio y un grupo piloto de clientes antes del lanzamiento.",
+      "modulo": "Portal de Clientes",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-24",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Portal-Clientes"
+      ],
+      "checklist": [
+        "Definir casos de prueba",
+        "Sesión de UAT con Nadia y equipo",
+        "Piloto con 2-3 clientes reales",
+        "Ajustes según feedback"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-028",
+      "titulo": "Relevamiento del sistema Catedral y sus datos",
+      "descripcion": "Análisis del sistema contable actual del estudio: módulos en uso, estructura de datos, exportaciones disponibles.",
+      "modulo": "Integración con Catedral",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-18",
+      "etiquetas": [
+        "Documentación",
+        "Mes 1",
+        "Catedral"
+      ],
+      "checklist": [
+        "Sesión con Nadia sobre módulos de Catedral en uso",
+        "Relevar formatos de exportación disponibles (Excel/API)",
+        "Confirmar con proveedor de Catedral las vías de integración reales",
+        "Documentar hallazgos y limitaciones"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-029",
+      "titulo": "Definir alcance final de integración (API o exportación)",
+      "descripcion": "Confirmar si la integración será por API, exportación/importación de archivos, u otra vía. Condiciona el resto del desarrollo del módulo.",
+      "modulo": "Integración con Catedral",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-31",
+      "etiquetas": [
+        "Documentación",
+        "Mes 1",
+        "Catedral",
+        "Riesgo Medio"
+      ],
+      "checklist": [
+        "Comparar opciones técnicas disponibles",
+        "Validar viabilidad de escritura (no solo lectura)",
+        "Decisión documentada y comunicada a Nadia",
+        "Actualizar alcance comprometido si corresponde"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-030",
+      "titulo": "Desarrollo del conector de exportación/importación con Catedral",
+      "descripcion": "Implementar el mecanismo definido en la tarea anterior para sincronizar datos entre el sistema nuevo y Catedral.",
+      "modulo": "Integración con Catedral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-01",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Catedral",
+        "Riesgo Medio"
+      ],
+      "checklist": [
+        "Implementar conector según vía definida",
+        "Mapeo de campos entre sistemas",
+        "Manejo de errores de sincronización",
+        "Log de operaciones de integración"
+      ],
+      "estimacion_horas": 16
+    },
+    {
+      "id": "FOLGAR-031",
+      "titulo": "Testing de sincronización con datos reales de Catedral",
+      "descripcion": "Validar la integración con datos reales del estudio, incluyendo casos límite y formatos inconsistentes.",
+      "modulo": "Integración con Catedral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-15",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Catedral"
+      ],
+      "checklist": [
+        "Probar con exportación real de Catedral",
+        "Validar integridad de datos sincronizados",
+        "Probar casos de error/datos incompletos",
+        "Documentar resultados"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-032",
+      "titulo": "Documentar alcance final de la integración con Catedral",
+      "descripcion": "Dejar registrado qué quedó resuelto (automatizado) y qué sigue siendo manual, para gestionar expectativas del cliente.",
+      "modulo": "Integración con Catedral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-20",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Catedral"
+      ],
+      "checklist": [
+        "Resumen de alcance logrado vs. comprometido",
+        "Lista de limitaciones conocidas",
+        "Recomendaciones para Ciclo 2 si aplica",
+        "Compartir con Nadia"
+      ],
+      "estimacion_horas": 3
+    },
+    {
+      "id": "FOLGAR-033",
+      "titulo": "Modelo de datos: calendario de vencimientos por cliente",
+      "descripcion": "Diseñar el esquema que asocia cada cliente del estudio con sus obligaciones y fechas de vencimiento.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-12",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Definir entidad Vencimiento (tipo, cliente, fecha, estado)",
+        "Relacionar con maestro de clientes",
+        "Carga inicial/importación del calendario actual",
+        "Validaciones de fechas"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-034",
+      "titulo": "Motor de reglas de notificación (recordatorios y frecuencias)",
+      "descripcion": "Lógica configurable para disparar avisos según reglas (ej. día 3 y día 10 para honorarios, X días antes del vencimiento).",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-19",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Definir reglas configurables por tipo de aviso",
+        "Job programado (cron) de evaluación diaria",
+        "Registro de notificaciones enviadas (evitar duplicados)",
+        "Tests de reglas con distintos escenarios"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-035",
+      "titulo": "Plantillas de mail: liquidaciones, honorarios, vencimientos",
+      "descripcion": "Diseñar y cargar las plantillas de comunicación para cada tipo de aviso definido con Nadia.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-09-24",
+      "etiquetas": [
+        "Backend",
+        "Diseño",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Plantilla de liquidaciones y boletas de pago",
+        "Plantilla de factura de honorarios",
+        "Plantilla de recordatorio de pago (día 3 / día 10)",
+        "Plantilla de vencimiento de impuestos"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-036",
+      "titulo": "Integrar envío por WhatsApp reutilizando conector 360dialog del CRM",
+      "descripcion": "Sumar el canal WhatsApp a las notificaciones del estudio, reutilizando la integración 360dialog construida para el CRM de Novaptix.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-01",
+      "etiquetas": [
+        "Backend",
+        "Integración",
+        "Mes 2-5",
+        "Notificaciones",
+        "Reutiliza CRM"
+      ],
+      "checklist": [
+        "Adaptar conector 360dialog al contexto del estudio",
+        "Definir plantillas aprobadas de WhatsApp Business",
+        "Fallback a email si falla WhatsApp",
+        "Test de envío real"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-037",
+      "titulo": "Panel de configuración de calendario y plantillas",
+      "descripcion": "Interfaz para que el equipo del estudio cargue/edite vencimientos y ajuste plantillas sin depender de Novaptix.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-08",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Pantalla de carga/edición de vencimientos",
+        "Editor simple de plantillas",
+        "Vista de historial de notificaciones enviadas",
+        "Permisos: solo admin/contador editan"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-038",
+      "titulo": "Aviso de finalización de tareas internas (equipo del estudio)",
+      "descripcion": "Notificación cuando una colaboradora del estudio marca una tarea como finalizada, para que el responsable tome conocimiento.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-13",
+      "etiquetas": [
+        "Backend",
+        "Frontend",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Definir evento de tarea finalizada",
+        "Notificación in-app al responsable",
+        "Notificación opcional por mail",
+        "Test end-to-end"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-039",
+      "titulo": "Testing end-to-end del Motor de Notificaciones",
+      "descripcion": "Validar el ciclo completo: carga de vencimiento, disparo de regla, envío por canal correcto y registro.",
+      "modulo": "Motor de Notificaciones / Vencimientos",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-16",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Notificaciones"
+      ],
+      "checklist": [
+        "Simular vencimientos próximos y vencidos",
+        "Validar envío por email y WhatsApp",
+        "Validar que no se dupliquen avisos",
+        "Validar registro de auditoría"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-040",
+      "titulo": "Investigar vías de acceso al Domicilio Fiscal Electrónico por cliente",
+      "descripcion": "Relevar cómo el estudio accede hoy al Domicilio Fiscal Electrónico de cada cliente en ARCA, para definir una vía de automatización viable y segura.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-01",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Alerta-Presentaciones",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Reunión con Nadia sobre acceso actual a ARCA por cliente",
+        "Confirmar si existe delegación de Clave Fiscal para el estudio",
+        "Evaluar si ARCA expone alguna API oficial para notificaciones",
+        "Documentar riesgos legales/de seguridad del enfoque elegido"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-041",
+      "titulo": "Definir arquitectura del monitoreo de novedades fiscales",
+      "descripcion": "Diseñar el mecanismo de consulta periódica y el modelo de datos para registrar novedades detectadas por cliente.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-15",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Alerta-Presentaciones",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Definir frecuencia y método de consulta",
+        "Modelo de datos de Novedad Fiscal por cliente",
+        "Definir manejo seguro de credenciales si aplica",
+        "Plan de contingencia si ARCA cambia su portal"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-042",
+      "titulo": "Desarrollo del servicio de monitoreo y detección de novedades",
+      "descripcion": "Implementar el servicio backend que consulta el Domicilio Fiscal Electrónico y detecta novedades nuevas por cliente.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-20",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Alerta-Presentaciones",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Implementar consulta periódica por cliente",
+        "Detectar y clasificar novedades nuevas vs. ya vistas",
+        "Manejo de errores de acceso/caída del portal",
+        "Logging detallado para diagnóstico"
+      ],
+      "estimacion_horas": 20
+    },
+    {
+      "id": "FOLGAR-043",
+      "titulo": "Disparar notificación automática por novedad detectada",
+      "descripcion": "Conectar el servicio de monitoreo con el Motor de Notificaciones para avisar al equipo del estudio y, si corresponde, al cliente final.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-27",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Alerta-Presentaciones"
+      ],
+      "checklist": [
+        "Integrar con Motor de Notificaciones existente",
+        "Definir destinatarios por tipo de novedad",
+        "Plantilla de aviso de novedad fiscal",
+        "Test de disparo end-to-end"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-044",
+      "titulo": "Bandeja de alertas por cliente (frontend)",
+      "descripcion": "Pantalla donde el equipo del estudio visualiza todas las novedades detectadas, agrupadas por cliente y estado.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-11-03",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Alerta-Presentaciones"
+      ],
+      "checklist": [
+        "Listado de novedades con filtros por cliente/estado",
+        "Marcar como vista/resuelta",
+        "Detalle de cada novedad",
+        "Exportar reporte de novedades"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-045",
+      "titulo": "Testing y validación de estabilidad del monitoreo fiscal",
+      "descripcion": "Validar el servicio en producción con un grupo piloto de clientes durante al menos 2 semanas antes de escalar a toda la cartera.",
+      "modulo": "Alerta de Presentaciones (Domicilio Fiscal Electrónico)",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-13",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Alerta-Presentaciones",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Piloto con 3-5 clientes reales",
+        "Monitorear falsos positivos/negativos",
+        "Validar comportamiento ante caída del portal ARCA",
+        "Reporte de estabilidad antes de escalar"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-046",
+      "titulo": "Modelo de calendario fiscal por jurisdicción (ARCA/ARBA/AGIP)",
+      "descripcion": "Definir el calendario de obligaciones mensuales por jurisdicción y tipo de contribuyente, parametrizable por cliente.",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-05",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "IVA-Tareas"
+      ],
+      "checklist": [
+        "Relevar vencimientos según terminación de CUIT (ARCA)",
+        "Relevar calendario ARBA e IIBB Convenio",
+        "Relevar calendario AGIP (CABA)",
+        "Modelar como reglas parametrizables, no fechas fijas"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-047",
+      "titulo": "Motor de generación recurrente de tareas mensuales",
+      "descripcion": "Job que, todos los meses, genera automáticamente una tarea de presentación por cliente y jurisdicción aplicable.",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-12",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "IVA-Tareas"
+      ],
+      "checklist": [
+        "Job programado de generación mensual",
+        "Asociar tarea a cliente y jurisdicción correspondiente",
+        "Evitar duplicados si ya existe la tarea del mes",
+        "Test con distintos regímenes de cliente"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-048",
+      "titulo": "Checklist estándar por tipo de presentación",
+      "descripcion": "Definir junto a Nadia el checklist de pasos que debe cumplir cada tipo de presentación (IVA, ARBA, AGIP).",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-16",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "IVA-Tareas"
+      ],
+      "checklist": [
+        "Relevar pasos actuales del equipo para IVA",
+        "Relevar pasos para ARBA/IIBB",
+        "Relevar pasos para AGIP",
+        "Cargar checklists como plantilla por tipo de tarea"
+      ],
+      "estimacion_horas": 5
+    },
+    {
+      "id": "FOLGAR-049",
+      "titulo": "Asignación automática a colaboradoras del estudio",
+      "descripcion": "Reglas de asignación de las tareas generadas según carga de trabajo o cliente asignado a cada colaboradora.",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-10-21",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "IVA-Tareas"
+      ],
+      "checklist": [
+        "Definir criterio de asignación (por cliente o balanceo de carga)",
+        "Notificar a la colaboradora asignada",
+        "Permitir reasignación manual",
+        "Test de asignación con casos reales"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-050",
+      "titulo": "Vista Kanban interna de tareas de presentaciones",
+      "descripcion": "Adaptar el componente de tablero Kanban del CRM de Novaptix para visualizar las tareas de presentaciones generadas por cliente/mes.",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-28",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "IVA-Tareas",
+        "Reutiliza CRM"
+      ],
+      "checklist": [
+        "Adaptar componente Kanban del CRM al dominio de presentaciones",
+        "Columnas: Pendiente/En curso/Presentado",
+        "Filtro por jurisdicción y colaboradora",
+        "Drag & drop de estado"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-051",
+      "titulo": "Testing del ciclo mensual completo de generación de tareas",
+      "descripcion": "Correr un ciclo mensual simulado end-to-end y validar con Nadia que las tareas reflejan la realidad operativa del estudio.",
+      "modulo": "Generación de Tareas IVA/ARBA/AGIP",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-04",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "IVA-Tareas"
+      ],
+      "checklist": [
+        "Simular generación de un mes completo",
+        "Validar cobertura de todos los clientes activos",
+        "Sesión de revisión con Nadia y equipo",
+        "Ajustes según feedback"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-052",
+      "titulo": "Relevar método actual de facturación electrónica del estudio",
+      "descripcion": "Confirmar si el estudio factura hoy vía Catedral, directo por webservice de ARCA, o un facturador externo.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-03",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Facturación-Electrónica",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Reunión con Nadia sobre proceso actual de facturación",
+        "Identificar si existe certificado digital/webservice habilitado",
+        "Evaluar si Catedral expone función de facturación por API",
+        "Documentar la vía de integración elegida"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-053",
+      "titulo": "Diseñar flujo de prefactura y aprobación",
+      "descripcion": "Modelar el flujo completo: generación de prefactura, revisión/aprobación por responsable, emisión definitiva.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-10-06",
+      "etiquetas": [
+        "Documentación",
+        "Backend",
+        "Mes 2-5",
+        "Facturación-Electrónica"
+      ],
+      "checklist": [
+        "Definir estados de la factura (Prefactura/Aprobada/Emitida/Rechazada)",
+        "Definir quién puede aprobar",
+        "Definir motivo de rechazo obligatorio",
+        "Validar flujo con Nadia"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-054",
+      "titulo": "Implementar bloqueo de emisión por facturas anteriores impagas",
+      "descripcion": "Antes de habilitar la emisión, el sistema debe verificar que el cliente no tenga facturas de honorarios previas sin pagar.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-10",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Facturación-Electrónica"
+      ],
+      "checklist": [
+        "Definir criterio de factura impaga (días de mora, estado)",
+        "Validación automática al momento de aprobar",
+        "Mensaje claro de bloqueo con detalle de deuda",
+        "Permitir excepción manual justificada y auditable"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-055",
+      "titulo": "Backend: integración con servicio de facturación electrónica",
+      "descripcion": "Implementar la emisión real de comprobantes electrónicos según la vía definida (ARCA directo o vía Catedral).",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-11-24",
+      "etiquetas": [
+        "Backend",
+        "Integración",
+        "Mes 2-5",
+        "Facturación-Electrónica",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Implementar conexión al webservice de facturación",
+        "Manejo de certificado digital y autenticación",
+        "Generar CAE y comprobante en PDF",
+        "Manejo de errores y reintentos"
+      ],
+      "estimacion_horas": 20
+    },
+    {
+      "id": "FOLGAR-056",
+      "titulo": "Frontend: pantalla de prefacturas pendientes de aprobación",
+      "descripcion": "Vista donde el responsable revisa, aprueba o rechaza prefacturas antes de la emisión definitiva.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-01",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Facturación-Electrónica"
+      ],
+      "checklist": [
+        "Listado de prefacturas pendientes",
+        "Detalle con estado de pago del cliente",
+        "Botones de aprobar/rechazar con motivo",
+        "Historial de aprobaciones"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-057",
+      "titulo": "Notificación de emisión y envío al cliente",
+      "descripcion": "Al emitirse la factura, notificar automáticamente al cliente (mail/portal) con el comprobante adjunto.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-04",
+      "etiquetas": [
+        "Backend",
+        "Mes 2-5",
+        "Facturación-Electrónica"
+      ],
+      "checklist": [
+        "Trigger de notificación post-emisión",
+        "Adjuntar comprobante en PDF",
+        "Publicar también en Portal de Clientes",
+        "Test de entrega"
+      ],
+      "estimacion_horas": 5
+    },
+    {
+      "id": "FOLGAR-058",
+      "titulo": "Testing en ambiente de homologación y validación con Nadia",
+      "descripcion": "Probar el circuito completo en el ambiente de pruebas del organismo antes de habilitar emisión real.",
+      "modulo": "Factura Electrónica Automática",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-11",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "Facturación-Electrónica",
+        "Riesgo Alto"
+      ],
+      "checklist": [
+        "Emitir comprobantes de prueba en homologación",
+        "Validar regla de bloqueo por impagos con casos reales",
+        "Sesión de UAT con Nadia",
+        "Plan de rollback si algo falla al pasar a producción"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-059",
+      "titulo": "Definir base de conocimiento del Asistente IA institucional",
+      "descripcion": "Recopilar documentación de procesos y flujos implementados para alimentar el asistente que responde consultas internas del equipo.",
+      "modulo": "Asistente IA Institucional",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-08",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Asistente-IA"
+      ],
+      "checklist": [
+        "Recopilar documentación de cada módulo entregado",
+        "Estructurar contenido para RAG",
+        "Definir preguntas frecuentes esperadas",
+        "Validar cobertura con el equipo"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-060",
+      "titulo": "Implementar servicio de Asistente IA",
+      "descripcion": "Adaptar la arquitectura de IA ya construida para el CRM de Novaptix al caso de uso de asistente interno de procesos.",
+      "modulo": "Asistente IA Institucional",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-15",
+      "etiquetas": [
+        "Backend",
+        "IA",
+        "Mes 2-5",
+        "Asistente-IA",
+        "Reutiliza CRM"
+      ],
+      "checklist": [
+        "Adaptar servicio de IA existente al nuevo contexto",
+        "Conectar con la base de conocimiento",
+        "Definir límites de lo que puede/no puede responder",
+        "Test de precisión de respuestas"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-061",
+      "titulo": "Integrar Asistente IA en el Portal/Plataforma",
+      "descripcion": "Widget de chat accesible para el equipo del estudio dentro de la plataforma.",
+      "modulo": "Asistente IA Institucional",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Baja",
+      "fecha_limite": "2026-12-18",
+      "etiquetas": [
+        "Frontend",
+        "Mes 2-5",
+        "Asistente-IA"
+      ],
+      "checklist": [
+        "Componente de chat flotante",
+        "Conectar con el backend del asistente",
+        "Historial de conversación por usuario",
+        "Feedback (útil/no útil) por respuesta"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-062",
+      "titulo": "Coordinar y ejecutar Mesa IA Ejecutiva",
+      "descripcion": "Sesión privada con Nadia para mapear oportunidades de IA en el estudio y definir hoja de ruta de transformación (Ciclo 2).",
+      "modulo": "Bonos del Ciclo",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-03",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Bonos"
+      ],
+      "checklist": [
+        "Preparar agenda de la sesión",
+        "Ejecutar la sesión con Nadia y dirección",
+        "Documentar oportunidades identificadas",
+        "Entregar hoja de ruta preliminar para Ciclo 2"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-063",
+      "titulo": "Elaborar Kit de Adopción (guías, FAQs, checklists)",
+      "descripcion": "Material de soporte para que el equipo del estudio adopte los sistemas entregados sin fricción.",
+      "modulo": "Bonos del Ciclo",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-22",
+      "etiquetas": [
+        "Documentación",
+        "Mes 2-5",
+        "Bonos"
+      ],
+      "checklist": [
+        "Guía de uso por módulo",
+        "FAQ de problemas comunes",
+        "Checklist de arranque para nuevos usuarios",
+        "Compartir en formato accesible (PDF/portal)"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-064",
+      "titulo": "Mapa de cambio para la transición operativa",
+      "descripcion": "Documento visual que explica al equipo qué cambia de la operación manual actual a los nuevos procesos automatizados.",
+      "modulo": "Bonos del Ciclo",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Baja",
+      "fecha_limite": "2026-12-22",
+      "etiquetas": [
+        "Documentación",
+        "Diseño",
+        "Mes 2-5",
+        "Bonos"
+      ],
+      "checklist": [
+        "Mapear proceso actual vs. proceso nuevo por módulo",
+        "Diseño visual simple antes/después",
+        "Revisión con Nadia",
+        "Distribuir al equipo"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-065",
+      "titulo": "Plan de testing end-to-end del sistema completo",
+      "descripcion": "Diseñar el plan de pruebas integrales que cubra los flujos críticos entre todos los módulos entregados.",
+      "modulo": "QA General / Testing Integral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-01",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "QA-General"
+      ],
+      "checklist": [
+        "Listar flujos críticos por módulo",
+        "Definir casos de prueba de integración entre módulos",
+        "Definir criterios de aceptación",
+        "Asignar responsables de testing"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-066",
+      "titulo": "Testing de regresión de módulos reutilizados de QTech",
+      "descripcion": "Verificar que la adaptación de componentes de QTech no introdujo regresiones respecto del comportamiento original.",
+      "modulo": "QA General / Testing Integral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-08",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "QA-General"
+      ],
+      "checklist": [
+        "Ejecutar suite de tests heredada de QTech",
+        "Validar auth/roles en el nuevo contexto",
+        "Validar formularios y listados genéricos",
+        "Documentar diferencias encontradas"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-067",
+      "titulo": "UAT general con Nadia y equipo del estudio",
+      "descripcion": "Sesión de validación funcional integral antes del cierre de la fase de desarrollo, cubriendo todos los módulos entregados.",
+      "modulo": "QA General / Testing Integral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-16",
+      "etiquetas": [
+        "QA",
+        "Mes 2-5",
+        "QA-General"
+      ],
+      "checklist": [
+        "Preparar guion de UAT por módulo",
+        "Ejecutar sesión con Nadia y equipo",
+        "Registrar hallazgos y bugs",
+        "Priorizar correcciones antes del cierre"
+      ],
+      "estimacion_horas": 8
+    },
+    {
+      "id": "FOLGAR-068",
+      "titulo": "Corrección de bugs detectados en UAT",
+      "descripcion": "Resolver los hallazgos priorizados de la sesión de UAT antes del pase a producción definitivo.",
+      "modulo": "QA General / Testing Integral",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-23",
+      "etiquetas": [
+        "Backend",
+        "Frontend",
+        "Mes 2-5",
+        "QA-General"
+      ],
+      "checklist": [
+        "Priorizar bugs por severidad",
+        "Corregir bugs críticos y altos",
+        "Re-testear correcciones",
+        "Cierre de UAT con Nadia"
+      ],
+      "estimacion_horas": 12
+    },
+    {
+      "id": "FOLGAR-069",
+      "titulo": "Capacitación: Panel Admin y Contador",
+      "descripcion": "Sesión en vivo para el equipo interno del estudio sobre el uso completo de la plataforma (roles admin/contador).",
+      "modulo": "Capacitación y Adopción",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-14",
+      "etiquetas": [
+        "Capacitación",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Preparar guion de capacitación",
+        "Sesión en vivo grabada",
+        "Material de referencia entregado",
+        "Encuesta de satisfacción post-capacitación"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-070",
+      "titulo": "Capacitación: Portal de Clientes (piloto de clientes)",
+      "descripcion": "Breve guía/sesión para un grupo piloto de clientes sobre cómo usar su portal.",
+      "modulo": "Capacitación y Adopción",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-17",
+      "etiquetas": [
+        "Capacitación",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Preparar material simple para clientes no técnicos",
+        "Sesión o video corto explicativo",
+        "Canal de soporte para dudas iniciales",
+        "Recoger feedback del piloto"
+      ],
+      "estimacion_horas": 3
+    },
+    {
+      "id": "FOLGAR-071",
+      "titulo": "Capacitación: Motor de Notificaciones y Alertas de Vencimientos",
+      "descripcion": "Enseñar al equipo cómo cargar/editar vencimientos y plantillas sin depender de Novaptix.",
+      "modulo": "Capacitación y Adopción",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-19",
+      "etiquetas": [
+        "Capacitación",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Guía de carga de vencimientos",
+        "Explicar edición de plantillas",
+        "Casos prácticos con datos reales",
+        "Validar autonomía del equipo"
+      ],
+      "estimacion_horas": 3
+    },
+    {
+      "id": "FOLGAR-072",
+      "titulo": "Capacitación: Tareas IVA/ARBA/AGIP y Factura Electrónica",
+      "descripcion": "Sesión específica sobre el flujo de tareas de presentaciones mensuales y el circuito de prefactura/aprobación/emisión.",
+      "modulo": "Capacitación y Adopción",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-12-21",
+      "etiquetas": [
+        "Capacitación",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Explicar generación automática de tareas mensuales",
+        "Explicar flujo de prefactura y aprobación",
+        "Explicar regla de bloqueo por impagos",
+        "Resolver dudas del equipo en vivo"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-073",
+      "titulo": "Setup de hosting backend y frontend",
+      "descripcion": "Configurar los ambientes de hosting para backend (NestJS/Fastify) y frontend, según lo incluido en la propuesta.",
+      "modulo": "Despliegue e Infraestructura",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-02",
+      "etiquetas": [
+        "Infraestructura",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Configurar ambiente de producción backend",
+        "Configurar ambiente de producción frontend",
+        "Configurar variables de entorno seguras",
+        "Documentar accesos"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-074",
+      "titulo": "Configurar base de datos MongoDB en la nube",
+      "descripcion": "Provisionar y asegurar la base de datos en la nube, con backups automáticos.",
+      "modulo": "Despliegue e Infraestructura",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-09-04",
+      "etiquetas": [
+        "Infraestructura",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Provisionar cluster MongoDB en la nube",
+        "Configurar backups automáticos",
+        "Configurar accesos con usuarios mínimos necesarios",
+        "Test de restore de backup"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-075",
+      "titulo": "Gestión de DNS y dominios del proyecto",
+      "descripcion": "Configurar los subdominios/dominios necesarios para plataforma, sitio web y portal de clientes.",
+      "modulo": "Despliegue e Infraestructura",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-09-06",
+      "etiquetas": [
+        "Infraestructura",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Configurar DNS de plataforma interna",
+        "Configurar DNS del sitio institucional",
+        "Configurar DNS del portal de clientes",
+        "Certificados SSL en todos los subdominios"
+      ],
+      "estimacion_horas": 3
+    },
+    {
+      "id": "FOLGAR-076",
+      "titulo": "Monitoreo y logging de producción",
+      "descripcion": "Implementar observabilidad básica (logs centralizados, alertas de caída) para dar soporte con SLA de 4h en Mes 6.",
+      "modulo": "Despliegue e Infraestructura",
+      "fase": "Meses 2-5 - Desarrollo e Implementación",
+      "prioridad": "Media",
+      "fecha_limite": "2026-12-05",
+      "etiquetas": [
+        "Infraestructura",
+        "Mes 2-5"
+      ],
+      "checklist": [
+        "Centralizar logs de backend",
+        "Configurar alertas de caída de servicio",
+        "Dashboard básico de salud del sistema",
+        "Documentar procedimiento de respuesta a incidentes"
+      ],
+      "estimacion_horas": 6
+    },
+    {
+      "id": "FOLGAR-077",
+      "titulo": "Plan de soporte y estabilización (Mes 6)",
+      "descripcion": "Documentar el procedimiento de soporte con SLA de 4h, canal de reporte de incidencias y plan de ajustes post-implementación.",
+      "modulo": "Despliegue e Infraestructura",
+      "fase": "Mes 6 - Soporte y Estabilización",
+      "prioridad": "Alta",
+      "fecha_limite": "2027-01-05",
+      "etiquetas": [
+        "Documentación",
+        "Mes 6"
+      ],
+      "checklist": [
+        "Definir canal de reporte de incidencias",
+        "Documentar SLA de 4h y escalamiento",
+        "Calendario de seguimiento de adopción",
+        "Plantilla de recomendaciones evolutivas"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-078",
+      "titulo": "Relevamiento de procesos y mapeo de cuellos de botella",
+      "descripcion": "Entregable comprometido de Mes 1: relevar en detalle los procesos actuales del estudio y priorizar por impacto real.",
+      "modulo": "Gestión de Proyecto / Mes 1",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-15",
+      "etiquetas": [
+        "Documentación",
+        "Mes 1",
+        "Gestión-Proyecto"
+      ],
+      "checklist": [
+        "Sesiones de relevamiento con Nadia y equipo",
+        "Mapeo de cuellos de botella actuales",
+        "Backlog priorizado por impacto",
+        "Validar priorización con Nadia"
+      ],
+      "estimacion_horas": 10
+    },
+    {
+      "id": "FOLGAR-079",
+      "titulo": "Cerrar puntos ambiguos pendientes del Kickoff",
+      "descripcion": "Resolver con Nadia las definiciones que quedaron abiertas tras el Kickoff antes de comenzar el desarrollo de los módulos afectados.",
+      "modulo": "Gestión de Proyecto / Mes 1",
+      "fase": "Mes 1 - Análisis y Diseño",
+      "prioridad": "Alta",
+      "fecha_limite": "2026-08-19",
+      "etiquetas": [
+        "Documentación",
+        "Mes 1",
+        "Gestión-Proyecto"
+      ],
+      "checklist": [
+        "Confirmar alcance exacto de PDF a asiento contable",
+        "Confirmar qué módulos de Catedral usa el estudio hoy",
+        "Confirmar cantidad de clientes activos (dimensiona volumen)",
+        "Confirmar referente interno del proyecto"
+      ],
+      "estimacion_horas": 4
+    },
+    {
+      "id": "FOLGAR-080",
+      "titulo": "Definir Ciclo 2: candidatos priorizados fuera de este ciclo",
+      "descripcion": "Junto a Nadia, priorizar 2-3 ítems entre los que quedaron fuera de este ciclo para planificar el Ciclo 2.",
+      "modulo": "Gestión de Proyecto / Mes 1",
+      "fase": "Mes 6 - Soporte y Estabilización",
+      "prioridad": "Media",
+      "fecha_limite": "2027-01-10",
+      "etiquetas": [
+        "Documentación",
+        "Mes 6",
+        "Gestión-Proyecto"
+      ],
+      "checklist": [
+        "Revisar lista de candidatos de Ciclo 2 con Nadia",
+        "Priorizar 2-3 ítems de mayor valor",
+        "Estimación preliminar de esfuerzo",
+        "Documento de propuesta para Ciclo 2"
+      ],
+      "estimacion_horas": 5
+    },
+    {
+      "id": "FOLGAR-081",
+      "titulo": "Reporte de cierre de ciclo y recomendaciones evolutivas",
+      "descripcion": "Entregable final de Mes 6 con resumen de lo implementado, métricas de adopción y recomendaciones para continuar.",
+      "modulo": "Gestión de Proyecto / Mes 1",
+      "fase": "Mes 6 - Soporte y Estabilización",
+      "prioridad": "Alta",
+      "fecha_limite": "2027-01-28",
+      "etiquetas": [
+        "Documentación",
+        "Mes 6",
+        "Gestión-Proyecto"
+      ],
+      "checklist": [
+        "Resumen ejecutivo de módulos entregados",
+        "Métricas de adopción por módulo",
+        "Incidencias resueltas durante el mes de soporte",
+        "Recomendaciones evolutivas para Ciclo 2"
+      ],
+      "estimacion_horas": 6
+    }
+  ]
+}
