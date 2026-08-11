@@ -63,7 +63,7 @@ flowchart TB
 | Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | **Completo** — CRUD de vencimientos y reglas, motor `evaluarReglas()` con cron diario y deduplicación por NotificacionEnviada, puerto `MessagingProvider` con adapters stub (email/WhatsApp) |
 | Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | **Scaffold completo** — Riesgo Alto: puerto `ArcaMonitorPort` + adapter stub, deduplicación por `referenciaExterna`, bandeja de alertas. Vía de acceso real a ARCA pendiente de definir con el cliente (FOLGAR-040/041) |
 | Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | **Completo** — generación mensual sin duplicados (regla simplificada por régimen fiscal, documentada en el código), Kanban con reordenamiento de posiciones |
-| Factura Electrónica Automática | 052–058 | facturacion-electronica/ | No iniciado — Riesgo Alto |
+| Factura Electrónica Automática | 052–058 | facturacion-electronica/ | **Scaffold completo** — Riesgo Alto: flujo Prefactura→Aprobada→Emitida/Rechazada real, bloqueo por impagos con excepción auditable (lógica real, no stub), puerto `FacturacionElectronicaPort` + adapter stub para la emisión (sin validez fiscal). Vía real (Catedral vs. ARCA directo) pendiente de FOLGAR-052 |
 | Asistente IA Institucional | 059–061 | asistente-ia/ | No iniciado |
 | Bonos del Ciclo | 062–064 | — (facilitación) | No iniciado |
 | QA General / Testing Integral | 065–068 | — (transversal) | No iniciado |
