@@ -61,8 +61,8 @@ flowchart TB
 | Portal de Clientes | 023–027 | portal-clientes/ | **Completo** — documentos/comunicados con scoping por rol forzado en el service (no solo en el controller), notificación al cliente vía `MessagingProvider`, archivo como base64 en Mongo (temporal, ver nota en el schema) |
 | Integración con Catedral | 028–032 | catedral/ | **Scaffold completo** — puerto `CatedralSyncPort` + adapter stub + log de auditoría; adapter real pendiente de FOLGAR-029 (vía de integración a definir con el cliente) |
 | Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | **Completo** — CRUD de vencimientos y reglas, motor `evaluarReglas()` con cron diario y deduplicación por NotificacionEnviada, puerto `MessagingProvider` con adapters stub (email/WhatsApp) |
-| Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | No iniciado — Riesgo Alto |
-| Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | No iniciado |
+| Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | **Scaffold completo** — Riesgo Alto: puerto `ArcaMonitorPort` + adapter stub, deduplicación por `referenciaExterna`, bandeja de alertas. Vía de acceso real a ARCA pendiente de definir con el cliente (FOLGAR-040/041) |
+| Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | **Completo** — generación mensual sin duplicados (regla simplificada por régimen fiscal, documentada en el código), Kanban con reordenamiento de posiciones |
 | Factura Electrónica Automática | 052–058 | facturacion-electronica/ | No iniciado — Riesgo Alto |
 | Asistente IA Institucional | 059–061 | asistente-ia/ | No iniciado |
 | Bonos del Ciclo | 062–064 | — (facilitación) | No iniciado |

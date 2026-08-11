@@ -16,6 +16,8 @@ import { CatedralModule } from './catedral/catedral.module';
 import { ExtractosIaModule } from './extractos-ia/extractos-ia.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { PortalClientesModule } from './portal-clientes/portal-clientes.module';
+import { AlertaPresentacionesModule } from './alerta-presentaciones/alerta-presentaciones.module';
+import { IvaTareasModule } from './iva-tareas/iva-tareas.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -62,6 +64,8 @@ import { HealthModule } from './health/health.module';
     ExtractosIaModule,
     NotificacionesModule,
     PortalClientesModule,
+    AlertaPresentacionesModule,
+    IvaTareasModule,
     HealthModule,
   ],
   providers: [
