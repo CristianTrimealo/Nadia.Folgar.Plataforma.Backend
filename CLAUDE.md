@@ -64,7 +64,7 @@ flowchart TB
 | Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | **Scaffold completo** — Riesgo Alto: puerto `ArcaMonitorPort` + adapter stub, deduplicación por `referenciaExterna`, bandeja de alertas. Vía de acceso real a ARCA pendiente de definir con el cliente (FOLGAR-040/041) |
 | Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | **Completo** — generación mensual sin duplicados (regla simplificada por régimen fiscal, documentada en el código), Kanban con reordenamiento de posiciones |
 | Factura Electrónica Automática | 052–058 | facturacion-electronica/ | **Scaffold completo** — Riesgo Alto: flujo Prefactura→Aprobada→Emitida/Rechazada real, bloqueo por impagos con excepción auditable (lógica real, no stub), puerto `FacturacionElectronicaPort` + adapter stub para la emisión (sin validez fiscal). Vía real (Catedral vs. ARCA directo) pendiente de FOLGAR-052 |
-| Asistente IA Institucional | 059–061 | asistente-ia/ | No iniciado |
+| Asistente IA Institucional | 059–061 | asistente-ia/ | **Scaffold completo** — puerto `AiChatPort` + adapter stub, historial de conversación por usuario, feedback útil/no útil. Falta proveedor de IA real y base de conocimiento (FOLGAR-059/060) |
 | Bonos del Ciclo | 062–064 | — (facilitación) | No iniciado |
 | QA General / Testing Integral | 065–068 | — (transversal) | No iniciado |
 | Capacitación y Adopción | 069–072 | — | No iniciado |

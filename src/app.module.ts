@@ -19,6 +19,7 @@ import { PortalClientesModule } from './portal-clientes/portal-clientes.module';
 import { AlertaPresentacionesModule } from './alerta-presentaciones/alerta-presentaciones.module';
 import { IvaTareasModule } from './iva-tareas/iva-tareas.module';
 import { FacturacionElectronicaModule } from './facturacion-electronica/facturacion-electronica.module';
+import { AsistenteIaModule } from './asistente-ia/asistente-ia.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -68,6 +69,7 @@ import { HealthModule } from './health/health.module';
     AlertaPresentacionesModule,
     IvaTareasModule,
     FacturacionElectronicaModule,
+    AsistenteIaModule,
     HealthModule,
   ],
   providers: [

@@ -20,6 +20,7 @@ export const PERMISSIONS = {
   FACTURACION_APROBAR: 'facturacion.aprobar',
   CATEDRAL_READ: 'catedral.read',
   CATEDRAL_WRITE: 'catedral.write',
+  ASISTENTE_IA_USO: 'asistente-ia.uso',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -44,6 +45,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<'admin' | 'contador' | 'cliente', 
       PERMISSIONS.FACTURACION_WRITE,
       PERMISSIONS.CATEDRAL_READ,
       PERMISSIONS.CATEDRAL_WRITE,
+      PERMISSIONS.ASISTENTE_IA_USO,
     ],
     cliente: [PERMISSIONS.PORTAL_DOCUMENTOS_READ],
   };
