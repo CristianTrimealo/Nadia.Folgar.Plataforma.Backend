@@ -14,6 +14,9 @@ import { AuthModule } from './auth/auth.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { CatedralModule } from './catedral/catedral.module';
 import { ExtractosIaModule } from './extractos-ia/extractos-ia.module';
+import { PlanCuentasModule } from './plan-cuentas/plan-cuentas.module';
+import { CuentasBancariasModule } from './cuentas-bancarias/cuentas-bancarias.module';
+import { ReglasClasificacionModule } from './reglas-clasificacion/reglas-clasificacion.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { PortalClientesModule } from './portal-clientes/portal-clientes.module';
 import { AlertaPresentacionesModule } from './alerta-presentaciones/alerta-presentaciones.module';
@@ -64,6 +67,9 @@ import { HealthModule } from './health/health.module';
     ClientesModule,
     CatedralModule,
     ExtractosIaModule,
+    PlanCuentasModule,
+    CuentasBancariasModule,
+    ReglasClasificacionModule,
     NotificacionesModule,
     PortalClientesModule,
     AlertaPresentacionesModule,
