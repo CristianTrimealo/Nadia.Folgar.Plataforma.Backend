@@ -12,7 +12,17 @@ export enum LadoAsiento {
 export enum ProcedenciaRegla {
   MANUAL = 'manual',
   APRENDIDA = 'aprendida',
+  /** Inferida por la IA al procesar un extracto (`ExtractosIaProcessor`), sin intervención humana. */
+  IA = 'ia',
 }
+
+/**
+ * Prioridad con la que se crean las reglas de procedencia `IA` — bien por
+ * encima del default (100) para que una regla manual o aprendida (revisada
+ * por un humano) siempre le gane si compiten por el mismo movimiento; "menor
+ * número se evalúa primero" (ver `ReglaFormDialog` en el Frontend).
+ */
+export const PRIORIDAD_SUGERIDA_IA = 500;
 
 export enum OperadorCondicionMonto {
   IGUAL = 'igual',

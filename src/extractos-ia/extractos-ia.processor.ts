@@ -1,12 +1,15 @@
 import { Inject, Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Job } from 'bullmq';
 import {
   AI_EXTRACTION_PORT,
   AiExtractionPort,
+  CuentaContableDisponible,
   MovimientoExtraido,
+  ReglaClasificacionSugerida,
+  ReglaExistenteResumen,
 } from './ports/ai-extraction.port';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import {
@@ -17,6 +20,8 @@ import {
   ValidacionSaldo,
 } from './schemas/extracto-bancario.schema';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
+import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
 import {
   MovimientoValidable,
   construirMovimientosConValidacion,
@@ -28,6 +33,7 @@ import {
 export interface ProcesarExtractoJobData {
   extractoId: string;
   estudioId: string;
+  userId: string;
   nombreArchivo: string;
   contenidoBase64: string;
 }
@@ -39,6 +45,17 @@ export interface ProcesarExtractoJobData {
  * validar saldos y persistir el resultado final. Corre fuera de la request
  * HTTP que subió el archivo — `ExtractosIaService.cargarExtracto` ya
  * respondió hace rato con el documento en `PROCESANDO`.
+ *
+ * Además, en la misma llamada de IA (no una aparte — evita re-mandar el
+ * texto del PDF y un segundo round-trip) le pide al proveedor que infiera
+ * reglas de clasificación para patrones recurrentes que mapeen con confianza
+ * a una cuenta YA EXISTENTE del plan de cuentas del cliente (nunca inventa
+ * cuentas nuevas). Esas reglas quedan activas de inmediato (procedencia
+ * `IA`, prioridad baja — nunca le ganan a una regla manual/aprendida para el
+ * mismo movimiento), así el asiento contable del propio extracto recién
+ * procesado ya las usa para agrupar. El reintento por diferencia de saldo NO
+ * vuelve a pedir este contexto — las reglas sugeridas siempre salen del
+ * primer intento exitoso.
  *
  * Al terminar (éxito, `requiere_revision` o error) notifica por WebSocket
  * vía `RealtimeGateway` a la room del estudio dueño del extracto, para que
@@ -54,18 +71,22 @@ export class ExtractosIaProcessor extends WorkerHost {
     private readonly extractoModel: Model<ExtractoBancarioDocument>,
     private readonly pdfTextExtractor: PdfTextExtractorService,
     private readonly realtimeGateway: RealtimeGateway,
+    private readonly planCuentasService: PlanCuentasService,
+    private readonly reglasClasificacionService: ReglasClasificacionService,
   ) {
     super();
   }
 
   async process(job: Job<ProcesarExtractoJobData>): Promise<void> {
-    const { extractoId, estudioId, nombreArchivo, contenidoBase64 } = job.data;
+    const { extractoId, estudioId, userId, nombreArchivo, contenidoBase64 } = job.data;
 
     const extracto = await this.extractoModel.findById(extractoId).exec();
     if (!extracto) {
       this.logger.warn(`Job descartado: el extracto ${extractoId} ya no existe.`);
       return;
     }
+
+    let reglasSugeridas: ReglaClasificacionSugerida[] = [];
 
     try {
       const { texto, tieneCapaDeTexto } = await this.pdfTextExtractor.extraer(contenidoBase64);
@@ -79,7 +100,18 @@ export class ExtractosIaProcessor extends WorkerHost {
         return;
       }
 
-      let resultado = await this.aiExtractionPort.extraerMovimientos({ nombreArchivo, texto });
+      const { cuentasContablesDisponibles, reglasExistentes } = await this.armarContextoClasificacion(
+        extracto.clienteId,
+        extracto.cuentaBancariaId,
+        estudioId,
+      );
+
+      let resultado = await this.aiExtractionPort.extraerMovimientos({
+        nombreArchivo,
+        texto,
+        cuentasContablesDisponibles,
+        reglasExistentes,
+      });
 
       if (!resultado.exitoso) {
         extracto.estado = EstadoExtracto.ERROR;
@@ -88,6 +120,11 @@ export class ExtractosIaProcessor extends WorkerHost {
         this.notificar(estudioId, extracto);
         return;
       }
+
+      // Se captura del primer intento — el reintento (abajo) es solo para
+      // corregir filas con diferencia de saldo, no vuelve a pedir contexto
+      // de plan de cuentas/reglas ni a inferir reglas de nuevo.
+      reglasSugeridas = resultado.reglasSugeridas;
 
       let movimientos = construirMovimientosConValidacion(
         this.mapearExtraidos(resultado.movimientos),
@@ -129,7 +166,97 @@ export class ExtractosIaProcessor extends WorkerHost {
     }
 
     await extracto.save();
+    await this.crearReglasSugeridas(reglasSugeridas, extracto, estudioId, userId);
     this.notificar(estudioId, extracto);
+  }
+
+  /** Junta el plan de cuentas y las reglas ya activas del cliente/cuenta bancaria, en el formato liviano que espera el puerto de IA. */
+  private async armarContextoClasificacion(
+    clienteId: Types.ObjectId,
+    cuentaBancariaId: Types.ObjectId,
+    estudioId: string,
+  ): Promise<{
+    cuentasContablesDisponibles: CuentaContableDisponible[];
+    reglasExistentes: ReglaExistenteResumen[];
+  }> {
+    const estudioObjectId = new Types.ObjectId(estudioId);
+
+    const [cuentas, reglas] = await Promise.all([
+      this.planCuentasService.findAll(
+        { clienteId: clienteId.toString(), limit: 100 },
+        estudioObjectId,
+      ),
+      this.reglasClasificacionService.findAll(
+        { clienteId: clienteId.toString(), activa: true, limit: 100 },
+        estudioObjectId,
+      ),
+    ]);
+
+    const cuentasActivas = cuentas.data.filter((c) => c.activo);
+    const cuentaCodigoPorId = new Map(cuentasActivas.map((c) => [c._id.toString(), c.codigo]));
+
+    const reglasDeEstaCuenta = reglas.data.filter(
+      (r) => !r.cuentaBancariaId || r.cuentaBancariaId.toString() === cuentaBancariaId.toString(),
+    );
+
+    return {
+      cuentasContablesDisponibles: cuentasActivas.map((c) => ({
+        codigo: c.codigo,
+        nombre: c.nombre,
+        naturaleza: c.naturaleza,
+      })),
+      reglasExistentes: reglasDeEstaCuenta
+        .map((r) => ({
+          patronTexto: r.patronTexto,
+          cuentaCodigo: cuentaCodigoPorId.get(r.cuentaContableId.toString()) ?? '',
+        }))
+        .filter((r) => r.cuentaCodigo),
+    };
+  }
+
+  /** Crea una `ReglaClasificacion` por cada sugerencia cuyo código de cuenta matchea una cuenta real. Nunca rompe el job por una sugerencia inválida. */
+  private async crearReglasSugeridas(
+    sugerencias: ReglaClasificacionSugerida[],
+    extracto: ExtractoBancarioDocument,
+    estudioId: string,
+    userId: string,
+  ): Promise<void> {
+    if (sugerencias.length === 0) return;
+
+    const cuentas = await this.planCuentasService.findAll(
+      { clienteId: extracto.clienteId.toString(), limit: 100 },
+      new Types.ObjectId(estudioId),
+    );
+    const cuentaIdPorCodigo = new Map(cuentas.data.map((c) => [c.codigo, c._id.toString()]));
+
+    for (const sugerencia of sugerencias) {
+      const cuentaContableId = cuentaIdPorCodigo.get(sugerencia.cuentaCodigo);
+      if (!cuentaContableId) {
+        this.logger.warn(
+          `Regla sugerida ignorada: código de cuenta "${sugerencia.cuentaCodigo}" no existe para el cliente ${extracto.clienteId.toString()}.`,
+        );
+        continue;
+      }
+
+      try {
+        await this.reglasClasificacionService.crearSugeridaPorIa(
+          {
+            clienteId: extracto.clienteId.toString(),
+            cuentaBancariaId: extracto.cuentaBancariaId.toString(),
+            conceptoContable: sugerencia.patronTexto,
+            cuentaContableId,
+            ladoAsiento: sugerencia.ladoAsiento,
+            patronTexto: sugerencia.patronTexto,
+            tipoMovimiento: sugerencia.tipoMovimiento,
+          },
+          new Types.ObjectId(estudioId),
+          new Types.ObjectId(userId),
+        );
+      } catch (error) {
+        const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+        this.logger.warn(`No se pudo crear la regla sugerida por IA ("${sugerencia.patronTexto}"): ${mensaje}`);
+      }
+    }
   }
 
   private notificar(estudioId: string, extracto: ExtractoBancarioDocument): void {

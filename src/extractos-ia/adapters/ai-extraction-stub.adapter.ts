@@ -3,6 +3,7 @@ import {
   AiExtractionInput,
   AiExtractionPort,
   ExtraccionResultado,
+  ReglaClasificacionSugerida,
 } from '../ports/ai-extraction.port';
 
 /**
@@ -22,6 +23,13 @@ import {
  * — para poder probar el camino de error sin un proveedor real. La detección
  * de PDFs sin capa de texto (FOLGAR-010) NO pasa por acá: ocurre antes, en
  * `PdfTextExtractorService`, sobre el PDF real.
+ *
+ * Si viene `cuentasContablesDisponibles` (no vacío), simula además la
+ * inferencia de reglas de clasificación: sugiere mapear "Comisión
+ * mantenimiento" (uno de los movimientos de ejemplo de acá abajo) a la
+ * primera cuenta de la lista — determinístico, para poder probar el flujo
+ * completo (extracto → regla sugerida → asiento agrupado) en dev/tests sin
+ * depender de una API key real.
  * ============================================================================
  */
 @Injectable()
@@ -37,15 +45,29 @@ export class AiExtractionStubAdapter implements AiExtractionPort {
       return Promise.resolve({
         exitoso: false,
         movimientos: [],
+        reglasSugeridas: [],
         mensaje: 'No se pudo estructurar el extracto. Simulado por el adapter stub.',
       });
     }
+
+    const primeraCuenta = input.cuentasContablesDisponibles?.[0];
+    const reglasSugeridas: ReglaClasificacionSugerida[] = primeraCuenta
+      ? [
+          {
+            patronTexto: 'Comisión mantenimiento',
+            cuentaCodigo: primeraCuenta.codigo,
+            ladoAsiento: 'debe',
+            tipoMovimiento: 'debito',
+          },
+        ]
+      : [];
 
     return Promise.resolve({
       exitoso: true,
       mensaje: 'Simulado: extracción de ejemplo generada por el adapter stub.',
       saldoInicialDeclarado: 100000,
       saldoFinalDeclarado: 329100,
+      reglasSugeridas,
       movimientos: [
         {
           fecha: '2026-08-01',

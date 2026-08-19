@@ -34,6 +34,34 @@ export interface MovimientoExtraido {
   saldoDespues?: number;
 }
 
+/** Cuenta contable del plan del cliente, tal como se le pasa a la IA de contexto (nunca un id de Mongo). */
+export interface CuentaContableDisponible {
+  codigo: string;
+  nombre: string;
+  naturaleza: 'deudora' | 'acreedora';
+}
+
+/** Regla de clasificación ya activa, de contexto — para que la IA no repita sugerencias ya cubiertas. */
+export interface ReglaExistenteResumen {
+  patronTexto?: string;
+  cuentaCodigo: string;
+}
+
+/**
+ * Regla de clasificación inferida por la IA a partir de un patrón recurrente del
+ * extracto que pudo mapear con confianza a una cuenta YA EXISTENTE del cliente
+ * (nunca inventa cuentas nuevas). Se resuelve contra `CuentaContableDisponible.codigo`
+ * — `ExtractosIaProcessor` es quien la convierte en una `ReglaClasificacion` real.
+ */
+export interface ReglaClasificacionSugerida {
+  /** Porción genérica y reconocible del concepto — no la fila completa (tiene que servir en extractos futuros). */
+  patronTexto: string;
+  /** Código EXACTO de una cuenta de `CuentaContableDisponible[]` — si no matchea ninguna, se descarta. */
+  cuentaCodigo: string;
+  ladoAsiento: 'debe' | 'haber';
+  tipoMovimiento?: TipoMovimientoExtraido;
+}
+
 export interface ExtraccionResultado {
   /** true si el adapter pudo extraer movimientos del PDF. */
   exitoso: boolean;
@@ -43,6 +71,12 @@ export interface ExtraccionResultado {
   saldoInicialDeclarado?: number;
   /** Saldo final declarado al pie/resumen del extracto, si el banco lo imprime. */
   saldoFinalDeclarado?: number;
+  /**
+   * Reglas de clasificación inferidas para patrones recurrentes del extracto.
+   * Vacío si no se pidió inferencia (no se pasó `cuentasContablesDisponibles`
+   * en el input) o si la IA no encontró ningún patrón mapeable con confianza.
+   */
+  reglasSugeridas: ReglaClasificacionSugerida[];
   /**
    * Mensaje legible para humanos. Se usa tanto para detalle de éxito como,
    * sobre todo, para casos de error (ej. "PDF sin capa de texto, probablemente
@@ -63,6 +97,15 @@ export interface AiExtractionInput {
    * reprocesar el documento completo de nuevo.
    */
   pistaRevision?: string;
+  /**
+   * Plan de cuentas activo del cliente — si viene, el adapter le pide a la IA
+   * que además infiera reglas de clasificación (`reglasSugeridas`) para
+   * patrones que mapeen con confianza a una de estas cuentas. Se omite en el
+   * reintento por diferencia de saldo (no hace falta volver a pedirlas).
+   */
+  cuentasContablesDisponibles?: CuentaContableDisponible[];
+  /** Reglas ya activas del cliente/cuenta bancaria — para que la IA no repita sugerencias. */
+  reglasExistentes?: ReglaExistenteResumen[];
 }
 
 export interface AiExtractionPort {

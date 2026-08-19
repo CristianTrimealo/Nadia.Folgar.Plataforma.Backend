@@ -116,4 +116,40 @@ describe('ReglasClasificacionService', () => {
       NotFoundException,
     );
   });
+
+  describe('crearSugeridaPorIa', () => {
+    it('crea la regla con procedencia IA, prioridad alta y activa, sin revalidar cliente/cuenta', async () => {
+      reglaModelMock.create.mockResolvedValue({});
+      const cuentaBancariaId = new Types.ObjectId().toString();
+
+      await service.crearSugeridaPorIa(
+        {
+          clienteId,
+          cuentaBancariaId,
+          conceptoContable: 'Comisión mantenimiento',
+          cuentaContableId,
+          ladoAsiento: LadoAsiento.DEBE,
+          patronTexto: 'Comisión mantenimiento',
+          tipoMovimiento: 'debito',
+        },
+        estudioId,
+        creadoPor,
+      );
+
+      expect(reglaModelMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clienteId,
+          cuentaBancariaId,
+          cuentaContableId,
+          procedencia: ProcedenciaRegla.IA,
+          prioridad: 500,
+          activa: true,
+          creadoPor,
+          estudioId,
+        }),
+      );
+      expect(clientesServiceMock.findOne).not.toHaveBeenCalled();
+      expect(planCuentasServiceMock.findOne).not.toHaveBeenCalled();
+    });
+  });
 });

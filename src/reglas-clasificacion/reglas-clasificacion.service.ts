@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import {
+  LadoAsiento,
+  PRIORIDAD_SUGERIDA_IA,
   ProcedenciaRegla,
   ReglaClasificacion,
   ReglaClasificacionDocument,
@@ -117,6 +119,41 @@ export class ReglasClasificacionService {
       : ProcedenciaRegla.MANUAL;
 
     return this.reglaModel.create({ ...dto, procedencia, creadoPor, estudioId });
+  }
+
+  /**
+   * Crea una regla inferida por `ExtractosIaProcessor` al procesar un
+   * extracto — a diferencia de `create()`, no pasa por
+   * `CreateReglaClasificacionDto` (no es un endpoint HTTP, nadie externo la
+   * llama) ni revalida que la cuenta contable pertenezca al cliente: quien
+   * llama ya la sacó de una consulta scopeada a ese mismo cliente
+   * (`PlanCuentasService.findAll`), así que la consistencia ya está
+   * garantizada por construcción. Prioridad alta y `procedencia: IA` para que
+   * nunca le gane a una regla manual/aprendida para el mismo movimiento, y
+   * quede auditable/desactivable como cualquier otra en la pantalla de
+   * Reglas de clasificación.
+   */
+  async crearSugeridaPorIa(
+    input: {
+      clienteId: string;
+      cuentaBancariaId?: string;
+      conceptoContable: string;
+      cuentaContableId: string;
+      ladoAsiento: LadoAsiento;
+      patronTexto: string;
+      tipoMovimiento?: 'debito' | 'credito';
+    },
+    estudioId: Types.ObjectId,
+    creadoPor: Types.ObjectId,
+  ): Promise<ReglaClasificacionDocument> {
+    return this.reglaModel.create({
+      ...input,
+      prioridad: PRIORIDAD_SUGERIDA_IA,
+      procedencia: ProcedenciaRegla.IA,
+      activa: true,
+      creadoPor,
+      estudioId,
+    });
   }
 
   async update(

@@ -7,6 +7,7 @@ import {
   AiExtractionPort,
   ExtraccionResultado,
   MovimientoExtraido,
+  ReglaClasificacionSugerida,
 } from '../ports/ai-extraction.port';
 import {
   ExtraccionSchema,
@@ -54,6 +55,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         return {
           exitoso: false,
           movimientos: [],
+          reglasSugeridas: [],
           mensaje: 'El proveedor de IA rechazó procesar este extracto.',
         };
       }
@@ -62,6 +64,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         return {
           exitoso: false,
           movimientos: [],
+          reglasSugeridas: [],
           mensaje: `La IA no devolvió un resultado estructurado válido (finish_reason: ${completion.choices[0]?.finish_reason}).`,
         };
       }
@@ -75,10 +78,17 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         numeroComprobante: m.numeroComprobante ?? undefined,
         saldoDespues: m.saldoDespues ?? undefined,
       }));
+      const reglasSugeridas: ReglaClasificacionSugerida[] = resultado.reglasSugeridas.map((r) => ({
+        patronTexto: r.patronTexto,
+        cuentaCodigo: r.cuentaCodigo,
+        ladoAsiento: r.ladoAsiento,
+        tipoMovimiento: r.tipoMovimiento ?? undefined,
+      }));
 
       return {
         exitoso: true,
         movimientos,
+        reglasSugeridas,
         saldoInicialDeclarado: resultado.saldoInicialDeclarado ?? undefined,
         saldoFinalDeclarado: resultado.saldoFinalDeclarado ?? undefined,
         mensaje: `Extraídos ${movimientos.length} movimientos con ${this.modelo}.`,
@@ -87,7 +97,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
       const mensaje =
         error instanceof Error ? error.message : 'Error desconocido al llamar al proveedor de IA';
       this.logger.error(`Falló la extracción con OpenAI para "${input.nombreArchivo}": ${mensaje}`);
-      return { exitoso: false, movimientos: [], mensaje };
+      return { exitoso: false, movimientos: [], reglasSugeridas: [], mensaje };
     }
   }
 }
