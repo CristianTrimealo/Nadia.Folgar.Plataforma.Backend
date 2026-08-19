@@ -8,12 +8,27 @@ export enum EstadoExtracto {
   PENDIENTE = 'pendiente',
   PROCESANDO = 'procesando',
   PROCESADO = 'procesado',
+  /**
+   * El extracto se estructuró correctamente, pero la validación
+   * determinística de saldo (fila por fila y/o el saldo final) encontró al
+   * menos una diferencia fuera de tolerancia. Nunca pasa a `PROCESADO`
+   * silenciosamente — la integridad de los datos manda por sobre la
+   * conveniencia (ver `ExtractosIaService.validarSaldos`).
+   */
+  REQUIERE_REVISION = 'requiere_revision',
   ERROR = 'error',
 }
 
 export enum TipoMovimiento {
   DEBITO = 'debito',
   CREDITO = 'credito',
+}
+
+export enum ValidacionSaldo {
+  OK = 'ok',
+  DIFERENCIA = 'diferencia',
+  /** No hay saldo declarado para esa fila (banco sin saldo corrido, o extracto legado). */
+  NO_APLICA = 'no_aplica',
 }
 
 /**
@@ -40,6 +55,24 @@ export class MovimientoExtracto {
 
   @Prop({ type: String, enum: TipoMovimiento })
   tipo?: TipoMovimiento;
+
+  @Prop({ trim: true })
+  numeroComprobante?: string;
+
+  /** Saldo en cuenta declarado por el banco para esta fila (impreso en el extracto). */
+  @Prop()
+  saldoDeclarado?: number;
+
+  /** Saldo calculado determinísticamente por el backend: saldoAnterior +/- este movimiento. */
+  @Prop()
+  saldoCalculado?: number;
+
+  /** `saldoDeclarado - saldoCalculado`. Debería ser ~0; si no, hay un movimiento mal extraído o faltante. */
+  @Prop()
+  diferenciaSaldo?: number;
+
+  @Prop({ type: String, enum: ValidacionSaldo, default: ValidacionSaldo.NO_APLICA })
+  validacionSaldo: ValidacionSaldo;
 }
 
 export const MovimientoExtractoSchema = SchemaFactory.createForClass(MovimientoExtracto);
@@ -63,6 +96,13 @@ export class ExtractoBancario {
   @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'CuentaBancaria', required: true, index: true })
+  cuentaBancariaId: Types.ObjectId;
+
+  /** Mes que cubre el extracto, formato "YYYY-MM" — agrupa el extracto para el asiento contable mensual. */
+  @Prop({ required: true, trim: true })
+  periodo: string;
+
   @Prop({ required: true, trim: true })
   nombreArchivo: string;
 
@@ -77,6 +117,14 @@ export class ExtractoBancario {
   @Prop({ type: [MovimientoExtractoSchema], default: [] })
   movimientos: MovimientoExtracto[];
 
+  /** Saldo inicial declarado en el encabezado del PDF (extraído por IA, no editable a mano). */
+  @Prop()
+  saldoInicialDeclarado?: number;
+
+  /** Saldo final declarado al pie del PDF (extraído por IA, no editable a mano). */
+  @Prop()
+  saldoFinalDeclarado?: number;
+
   /** Mensaje de error del procesamiento (PDF sin capa de texto, banco no soportado, etc.). */
   @Prop({ trim: true })
   mensajeError?: string;
@@ -87,3 +135,4 @@ export class ExtractoBancario {
 
 export const ExtractoBancarioSchema = SchemaFactory.createForClass(ExtractoBancario);
 ExtractoBancarioSchema.index({ estudioId: 1, clienteId: 1 });
+ExtractoBancarioSchema.index({ estudioId: 1, cuentaBancariaId: 1, periodo: 1 });

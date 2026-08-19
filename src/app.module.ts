@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { LoggerModule } from 'nestjs-pino';
 import { validateEnv } from './config/env.validation';
 import { GlobalHttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -13,6 +14,7 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ClientesModule } from './clientes/clientes.module';
 import { CatedralModule } from './catedral/catedral.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { ExtractosIaModule } from './extractos-ia/extractos-ia.module';
 import { PlanCuentasModule } from './plan-cuentas/plan-cuentas.module';
 import { CuentasBancariasModule } from './cuentas-bancarias/cuentas-bancarias.module';
@@ -50,6 +52,12 @@ import { HealthModule } from './health/health.module';
         uri: configService.get<string>('MONGODB_URI'),
       }),
     }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: { url: configService.get<string>('REDIS_URL') },
+      }),
+    }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => [
@@ -66,6 +74,7 @@ import { HealthModule } from './health/health.module';
     AuthModule,
     ClientesModule,
     CatedralModule,
+    RealtimeModule,
     ExtractosIaModule,
     PlanCuentasModule,
     CuentasBancariasModule,

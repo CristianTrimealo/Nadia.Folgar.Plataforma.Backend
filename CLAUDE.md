@@ -55,7 +55,7 @@ flowchart TB
 |---|---|---|---|
 | Fundación Técnica | 001–006 | auth/, roles/, users/, clientes/ | **Completo** — auth JWT+refresh, permisos granulares, maestro Cliente con paginación, seed inicial. Sumado fuera de backlog (pedido directo de la pantalla "Mi perfil" del Frontend): autogestión del propio usuario — `GET/PATCH /auth/me/profile` (nombre, email, fecha de nacimiento, país/provincia/ciudad, teléfono), `PATCH /auth/me/password` (verifica la actual con argon2) y `PUT /auth/me/avatar` (foto como base64 en Mongo, mismo patrón temporal que `Documento` en portal-clientes — ver la nota en `user.schema.ts`) |
 | Gestión de Proyecto / Mes 1 | 006, 078–081 | — (documentación) | No iniciado |
-| Procesador de Extractos con IA | 007–012 | extractos-ia/ | **Scaffold + procesamiento síncrono** — puerto `AiExtractionPort` + adapter stub determinístico, subtotales por concepto, movimientos editables. Falta proveedor de IA real, testing con extractos reales (FOLGAR-011) |
+| Procesador de Extractos con IA | 007–012 | extractos-ia/ | **Scaffold + procesamiento asíncrono** — puerto `AiExtractionPort` con adapters stub/Anthropic/OpenAI (switch por `AI_PROVIDER`), subtotales por concepto, movimientos editables. `POST /extractos-ia/analizar` detecta CUIT/período por regex (sin IA, vía `ExtractoDeteccionService`) para que el Frontend pre-complete cliente/período antes de la carga. `cargarExtracto` encola un job BullMQ (`ExtractosIaProcessor`) en vez de procesar en la misma request — notifica el resultado por WebSocket (`RealtimeModule`). Falta testing con extractos reales (FOLGAR-011) |
 | Manual de Marca e Identidad Visual | 013–017 | — (diseño) | No iniciado |
 | Sitio Web del Estudio | 018–022 | pendiente de decisión | No iniciado |
 | Portal de Clientes | 023–027 | portal-clientes/ | **Completo** — documentos/comunicados con scoping por rol forzado en el service (no solo en el controller), notificación al cliente vía `MessagingProvider`, archivo como base64 en Mongo (temporal, ver nota en el schema) |
@@ -74,7 +74,9 @@ flowchart TB
 - Requisitos: Node 20+ (probado con Node 22), Docker.
 - `npm install`
 - `cp .env.example .env` y completar `JWT_SECRET` / `JWT_REFRESH_SECRET` (mínimo 16 caracteres)
-- `docker compose up -d mongo` (o `docker compose up -d` para levantar Mongo + API)
+- `docker compose up -d mongo redis` (o `docker compose up -d` para levantar Mongo + Redis + API) —
+  Redis es requerido (`REDIS_URL`, sin default) desde que `extractos-ia` pasó a procesamiento
+  asíncrono vía BullMQ
 - `npm run start:dev` — API en `http://localhost:3000/api/v1`, Swagger en `/api/docs` y `/api/docs-json`
 - `npm run seed` — crea el Estudio, los 3 roles de sistema y un usuario admin inicial
   (`admin@folgar.com.ar` / `CambiarEn1erLogin!` por defecto, override con `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`)
@@ -112,6 +114,15 @@ shape `{statusCode,message,error,timestamp,path}` → 401 sin token).
 9. **Riesgo Alto (Alerta-Presentaciones, Facturación-Electrónica)**: se construye el
    scaffold + contratos/puertos + UI; el adapter real contra ARCA/webservice de
    facturación queda stub hasta confirmar la vía de acceso con el cliente.
+10. **BullMQ + Redis para procesamiento asíncrono, WebSocket (socket.io) para push** —
+    primera cola/worker real del proyecto (hasta ahora solo había cron in-process con
+    `@nestjs/schedule`). Se adoptó cuando el procesamiento 100% síncrono de
+    `extractos-ia` (única llamada a IA dentro de la misma request HTTP) empezó a
+    superar el timeout del Frontend con extractos reales — ver `ExtractosIaProcessor`
+    y `RealtimeGateway` (`src/realtime/`, JWT del propio `AuthModule` para autenticar
+    el handshake). Redis es infraestructura nueva: sumado a `docker-compose.yml` y a
+    `REDIS_URL`; no había ninguna decisión de hosting tomada todavía (backlog
+    FOLGAR-073–077), así que no chocó con nada existente.
 
 ## Referencia al backlog
 `docs/backlog/Folgar_Backlog_Tareas.json` (copiado desde el Frontend). 81 tareas,

@@ -1,15 +1,23 @@
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException } from '@nestjs/common';
+import { getQueueToken } from '@nestjs/bullmq';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ExtractosIaService } from './extractos-ia.service';
-import { AI_EXTRACTION_PORT } from './ports/ai-extraction.port';
-import { EstadoExtracto, ExtractoBancario } from './schemas/extracto-bancario.schema';
+import {
+  EstadoExtracto,
+  ExtractoBancario,
+  ValidacionSaldo,
+} from './schemas/extracto-bancario.schema';
+import { PdfTextExtractorService } from './pdf-text-extractor.service';
+import { CuentasBancariasService } from '../cuentas-bancarias/cuentas-bancarias.service';
+import { ExtractoDeteccionService } from './extracto-deteccion.service';
 
 describe('ExtractosIaService', () => {
   let service: ExtractosIaService;
   const estudioId = new Types.ObjectId();
   const clienteId = new Types.ObjectId().toString();
+  const cuentaBancariaId = new Types.ObjectId().toString();
 
   const extractoModelMock: any = {
     create: jest.fn(),
@@ -18,17 +26,22 @@ describe('ExtractosIaService', () => {
     countDocuments: jest.fn(),
   };
 
-  // Fake que implementa AiExtractionPort — reemplaza al adapter real (stub o
-  // futuro proveedor de IA) para probar ExtractosIaService sin depender de ninguno.
-  const fakePort: any = {
-    extraerMovimientos: jest.fn(),
-  };
+  const pdfTextExtractorMock = { extraer: jest.fn() };
+  const cuentasBancariasServiceMock = { findOne: jest.fn() };
+  // Reemplaza la cola real (BullMQ/Redis) — `cargarExtracto` solo debe
+  // encolar un job, nunca procesar nada él mismo (eso lo hace
+  // `ExtractosIaProcessor`, ver `extractos-ia.processor.spec.ts`).
+  const queueMock = { add: jest.fn() };
 
   function buildExtractoInstance(overrides: Record<string, unknown> = {}): any {
     const instance: any = {
       nombreArchivo: 'extracto.pdf',
+      cuentaBancariaId: new Types.ObjectId(cuentaBancariaId),
+      periodo: '2026-07',
       estado: EstadoExtracto.PROCESANDO,
       movimientos: [],
+      saldoInicialDeclarado: undefined,
+      saldoFinalDeclarado: undefined,
       mensajeError: undefined,
       save: jest.fn().mockResolvedValue(undefined),
       ...overrides,
@@ -37,91 +50,79 @@ describe('ExtractosIaService', () => {
       nombreArchivo: instance.nombreArchivo,
       estado: instance.estado,
       movimientos: instance.movimientos,
+      saldoInicialDeclarado: instance.saldoInicialDeclarado,
+      saldoFinalDeclarado: instance.saldoFinalDeclarado,
       mensajeError: instance.mensajeError,
     }));
     return instance;
   }
 
+  const createDto = {
+    nombreArchivo: 'extracto.pdf',
+    contenidoBase64: 'QQ==',
+    clienteId,
+    cuentaBancariaId,
+    periodo: '2026-07',
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    cuentasBancariasServiceMock.findOne.mockResolvedValue({
+      clienteId: { toString: () => clienteId },
+    });
     const moduleRef = await Test.createTestingModule({
       providers: [
         ExtractosIaService,
-        { provide: AI_EXTRACTION_PORT, useValue: fakePort },
         { provide: getModelToken(ExtractoBancario.name), useValue: extractoModelMock },
+        { provide: PdfTextExtractorService, useValue: pdfTextExtractorMock },
+        { provide: CuentasBancariasService, useValue: cuentasBancariasServiceMock },
+        { provide: getQueueToken('extractos-ia'), useValue: queueMock },
+        ExtractoDeteccionService,
       ],
     }).compile();
 
     service = moduleRef.get(ExtractosIaService);
   });
 
-  it('cargarExtracto pasa a "procesado" con los movimientos cuando el puerto responde éxito', async () => {
-    const instance = buildExtractoInstance();
-    extractoModelMock.create.mockResolvedValue(instance);
-    fakePort.extraerMovimientos.mockResolvedValue({
-      exitoso: true,
-      movimientos: [
-        { fecha: '2026-08-01', concepto: 'Transferencia recibida', monto: 1000, tipo: 'credito' },
-      ],
-      mensaje: 'ok',
+  describe('cargarExtracto', () => {
+    it('rechaza si la cuenta bancaria pertenece a otro cliente', async () => {
+      cuentasBancariasServiceMock.findOne.mockResolvedValue({
+        clienteId: { toString: () => new Types.ObjectId().toString() },
+      });
+
+      await expect(service.cargarExtracto(createDto, estudioId)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(extractoModelMock.create).not.toHaveBeenCalled();
+      expect(queueMock.add).not.toHaveBeenCalled();
     });
 
-    const result = await service.cargarExtracto(
-      { nombreArchivo: 'extracto.pdf', contenidoBase64: 'QQ==', clienteId },
-      estudioId,
-    );
+    it('crea el documento en PROCESANDO y encola el job, sin procesar nada de forma síncrona', async () => {
+      const nuevoId = new Types.ObjectId().toString();
+      const instance = buildExtractoInstance({ _id: nuevoId });
+      extractoModelMock.create.mockResolvedValue(instance);
 
-    expect(fakePort.extraerMovimientos).toHaveBeenCalledWith({
-      nombreArchivo: 'extracto.pdf',
-      contenidoBase64: 'QQ==',
-    });
-    expect(extractoModelMock.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        clienteId: expect.any(Types.ObjectId),
+      const result = await service.cargarExtracto(createDto, estudioId);
+
+      expect(extractoModelMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clienteId: expect.any(Types.ObjectId),
+          cuentaBancariaId: expect.any(Types.ObjectId),
+          periodo: '2026-07',
+          estado: EstadoExtracto.PROCESANDO,
+          estudioId,
+        }),
+      );
+      expect(queueMock.add).toHaveBeenCalledWith('procesar', {
+        extractoId: nuevoId,
+        estudioId: estudioId.toString(),
         nombreArchivo: 'extracto.pdf',
-        estado: EstadoExtracto.PROCESANDO,
-        estudioId,
-      }),
-    );
-    expect(result.estado).toBe(EstadoExtracto.PROCESADO);
-    expect(result.movimientos).toHaveLength(1);
-    expect(result.mensajeError).toBeUndefined();
-    expect(instance.save).toHaveBeenCalledTimes(1);
-  });
-
-  it('cargarExtracto queda en estado "error" con el mensaje cuando el puerto responde no exitoso', async () => {
-    const instance = buildExtractoInstance({ nombreArchivo: 'escaneado.pdf' });
-    extractoModelMock.create.mockResolvedValue(instance);
-    fakePort.extraerMovimientos.mockResolvedValue({
-      exitoso: false,
-      movimientos: [],
-      mensaje: 'PDF sin capa de texto, probablemente escaneado',
+        contenidoBase64: 'QQ==',
+      });
+      expect(pdfTextExtractorMock.extraer).not.toHaveBeenCalled();
+      expect(result.estado).toBe(EstadoExtracto.PROCESANDO);
+      expect(instance.save).not.toHaveBeenCalled();
     });
-
-    const result = await service.cargarExtracto(
-      { nombreArchivo: 'escaneado.pdf', contenidoBase64: '', clienteId },
-      estudioId,
-    );
-
-    expect(result.estado).toBe(EstadoExtracto.ERROR);
-    expect(result.mensajeError).toBe('PDF sin capa de texto, probablemente escaneado');
-    expect(result.movimientos).toHaveLength(0);
-    expect(instance.save).toHaveBeenCalledTimes(1);
-  });
-
-  it('cargarExtracto queda en estado "error" si el puerto lanza una excepción', async () => {
-    const instance = buildExtractoInstance();
-    extractoModelMock.create.mockResolvedValue(instance);
-    fakePort.extraerMovimientos.mockRejectedValue(new Error('timeout del proveedor de IA'));
-
-    const result = await service.cargarExtracto(
-      { nombreArchivo: 'extracto.pdf', contenidoBase64: 'QQ==', clienteId },
-      estudioId,
-    );
-
-    expect(result.estado).toBe(EstadoExtracto.ERROR);
-    expect(result.mensajeError).toBe('timeout del proveedor de IA');
-    expect(instance.save).toHaveBeenCalledTimes(1);
   });
 
   it('findAll devuelve el listado paginado filtrado por estudio', async () => {
@@ -148,30 +149,187 @@ describe('ExtractosIaService', () => {
     );
   });
 
-  it('actualizarMovimientos reemplaza los movimientos y recalcula subtotalesPorConcepto', async () => {
-    const instance = buildExtractoInstance({
-      estado: EstadoExtracto.PROCESADO,
-      movimientos: [{ concepto: 'Viejo', monto: 1, fecha: '2026-01-01' }],
+  describe('actualizarMovimientos', () => {
+    it('reemplaza los movimientos y recalcula subtotalesPorConcepto', async () => {
+      const instance = buildExtractoInstance({
+        estado: EstadoExtracto.PROCESADO,
+        movimientos: [{ concepto: 'Viejo', monto: 1, fecha: '2026-01-01' }],
+      });
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+
+      const nuevosMovimientos = [
+        { fecha: '2026-08-01', concepto: 'Transferencia', monto: 1000 },
+        { fecha: '2026-08-02', concepto: 'Transferencia', monto: 500 },
+        { fecha: '2026-08-03', concepto: 'Comisión mantenimiento', monto: -200 },
+      ];
+
+      const result = await service.actualizarMovimientos(
+        '507f1f77bcf86cd799439011',
+        nuevosMovimientos,
+        estudioId,
+      );
+
+      expect(instance.movimientos).toHaveLength(3);
+      expect(instance.movimientos.map((m: { concepto: string }) => m.concepto)).toEqual([
+        'Transferencia',
+        'Transferencia',
+        'Comisión mantenimiento',
+      ]);
+      expect(instance.save).toHaveBeenCalledTimes(1);
+      expect(result.subtotalesPorConcepto).toEqual({
+        Transferencia: 1500,
+        'Comisión mantenimiento': -200,
+      });
     });
-    extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
 
-    const nuevosMovimientos = [
-      { fecha: '2026-08-01', concepto: 'Transferencia', monto: 1000 },
-      { fecha: '2026-08-02', concepto: 'Transferencia', monto: 500 },
-      { fecha: '2026-08-03', concepto: 'Comisión mantenimiento', monto: -200 },
-    ];
+    it('si la corrección manual resuelve la diferencia, el extracto vuelve a "procesado"', async () => {
+      const instance = buildExtractoInstance({
+        estado: EstadoExtracto.REQUIERE_REVISION,
+        saldoInicialDeclarado: 1000,
+        saldoFinalDeclarado: 1200,
+        movimientos: [
+          {
+            fecha: '01/01/26',
+            concepto: 'Transferencia',
+            monto: 100,
+            tipo: 'credito',
+            saldoDeclarado: 1200,
+            validacionSaldo: ValidacionSaldo.DIFERENCIA,
+          },
+        ],
+      });
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
 
-    const result = await service.actualizarMovimientos(
-      '507f1f77bcf86cd799439011',
-      nuevosMovimientos,
-      estudioId,
-    );
+      const result = await service.actualizarMovimientos(
+        '507f1f77bcf86cd799439011',
+        [
+          {
+            fecha: '01/01/26',
+            concepto: 'Transferencia',
+            monto: 200,
+            tipo: 'credito' as any,
+            saldoDeclarado: 1200,
+          },
+        ],
+        estudioId,
+      );
 
-    expect(instance.movimientos).toEqual(nuevosMovimientos);
-    expect(instance.save).toHaveBeenCalledTimes(1);
-    expect(result.subtotalesPorConcepto).toEqual({
-      Transferencia: 1500,
-      'Comisión mantenimiento': -200,
+      expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
+      expect((result as any).movimientos[0].validacionSaldo).toBe(ValidacionSaldo.OK);
+    });
+  });
+
+  describe('actualizarDatos', () => {
+    it('rechaza si la nueva cuenta bancaria no pertenece al cliente indicado', async () => {
+      const instance = buildExtractoInstance({
+        clienteId: new Types.ObjectId(clienteId),
+        cuentaBancariaId: new Types.ObjectId(cuentaBancariaId),
+      });
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      cuentasBancariasServiceMock.findOne.mockResolvedValue({
+        clienteId: { toString: () => new Types.ObjectId().toString() },
+      });
+
+      const otraCuentaId = new Types.ObjectId().toString();
+      await expect(
+        service.actualizarDatos(
+          '507f1f77bcf86cd799439011',
+          { cuentaBancariaId: otraCuentaId },
+          estudioId,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(instance.save).not.toHaveBeenCalled();
+    });
+
+    it('actualiza cliente y cuenta bancaria cuando la pertenencia es válida', async () => {
+      const instance = buildExtractoInstance({
+        clienteId: new Types.ObjectId(clienteId),
+        cuentaBancariaId: new Types.ObjectId(cuentaBancariaId),
+      });
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+
+      const nuevoClienteId = new Types.ObjectId().toString();
+      const nuevaCuentaId = new Types.ObjectId().toString();
+      cuentasBancariasServiceMock.findOne.mockResolvedValue({
+        clienteId: { toString: () => nuevoClienteId },
+      });
+
+      await service.actualizarDatos(
+        '507f1f77bcf86cd799439011',
+        { clienteId: nuevoClienteId, cuentaBancariaId: nuevaCuentaId },
+        estudioId,
+      );
+
+      expect(instance.clienteId.toString()).toBe(nuevoClienteId);
+      expect(instance.cuentaBancariaId.toString()).toBe(nuevaCuentaId);
+      expect(instance.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('no toca nada ni guarda si el DTO viene vacío', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+
+      await service.actualizarDatos('507f1f77bcf86cd799439011', {}, estudioId);
+
+      expect(instance.save).not.toHaveBeenCalled();
+      expect(cuentasBancariasServiceMock.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('eliminar', () => {
+    it('elimina el documento del estudio correspondiente', async () => {
+      const instance = buildExtractoInstance({ deleteOne: jest.fn().mockResolvedValue(undefined) });
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+
+      await service.eliminar('507f1f77bcf86cd799439011', estudioId);
+
+      expect(instance.deleteOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('lanza NotFoundException si el extracto no existe en el estudio', async () => {
+      extractoModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
+      await expect(service.eliminar('507f1f77bcf86cd799439011', estudioId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('analizarEncabezado', () => {
+    const analizarDto = { nombreArchivo: 'extracto.pdf', contenidoBase64: 'QQ==' };
+
+    it('devuelve tieneCapaDeTexto=false sin llamar al detector si el PDF no tiene capa de texto', async () => {
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: '', tieneCapaDeTexto: false });
+
+      const result = await service.analizarEncabezado(analizarDto);
+
+      expect(result).toEqual({ tieneCapaDeTexto: false });
+    });
+
+    it('detecta CUIT y período del texto extraído', async () => {
+      pdfTextExtractorMock.extraer.mockResolvedValue({
+        texto: 'CUIT: 30-71234567-8\nPeríodo: 01/08/2026 al 31/08/2026',
+        tieneCapaDeTexto: true,
+      });
+
+      const result = await service.analizarEncabezado(analizarDto);
+
+      expect(result).toEqual({
+        tieneCapaDeTexto: true,
+        cuitDetectado: '30-71234567-8',
+        periodoDetectado: '2026-08',
+      });
+    });
+
+    it('no persiste nada ni requiere estudioId', async () => {
+      pdfTextExtractorMock.extraer.mockResolvedValue({
+        texto: 'Extracto sin CUIT ni período reconocibles.',
+        tieneCapaDeTexto: true,
+      });
+
+      await service.analizarEncabezado(analizarDto);
+
+      expect(extractoModelMock.create).not.toHaveBeenCalled();
     });
   });
 });

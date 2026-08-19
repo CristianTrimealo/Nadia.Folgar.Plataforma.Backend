@@ -7,6 +7,14 @@ services:
     volumes:
       - mongo-data:/data/db
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
   api:
     build:
       context: .
@@ -18,8 +26,11 @@ services:
       - .env
     environment:
       MONGODB_URI: mongodb://mongo:27017/folgar
+      REDIS_URL: redis://redis:6379
     depends_on:
       - mongo
+      - redis
 
 volumes:
   mongo-data:
+  redis-data:

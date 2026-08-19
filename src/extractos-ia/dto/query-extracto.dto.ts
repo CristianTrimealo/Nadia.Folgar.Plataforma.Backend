@@ -8,6 +8,10 @@ export class QueryExtractoDto extends PaginationQueryDto {
   clienteId?: string;
 
   @IsOptional()
+  @IsMongoId()
+  cuentaBancariaId?: string;
+
+  @IsOptional()
   @IsEnum(EstadoExtracto)
   estado?: EstadoExtracto;
 }

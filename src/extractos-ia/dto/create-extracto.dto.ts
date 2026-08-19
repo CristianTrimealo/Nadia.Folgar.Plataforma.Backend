@@ -1,4 +1,4 @@
-import { IsMongoId, IsNotEmpty, IsString } from 'class-validator';
+import { IsMongoId, IsNotEmpty, IsString, Matches } from 'class-validator';
 
 /**
  * DTO de carga del extracto. DECISIÓN DE SCOPE: en vez de upload multipart
@@ -19,4 +19,11 @@ export class CreateExtractoDto {
 
   @IsMongoId()
   clienteId: string;
+
+  @IsMongoId()
+  cuentaBancariaId: string;
+
+  /** Mes que cubre el extracto, formato "YYYY-MM" — agrupa el extracto para el asiento contable mensual. */
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'periodo debe tener formato YYYY-MM' })
+  periodo: string;
 }

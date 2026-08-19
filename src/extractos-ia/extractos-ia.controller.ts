@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,7 +20,9 @@ import { AuthenticatedUser } from '../common/types/authenticated-user';
 import { ExtractosIaService } from './extractos-ia.service';
 import { CreateExtractoDto } from './dto/create-extracto.dto';
 import { UpdateMovimientosDto } from './dto/update-movimientos.dto';
+import { UpdateExtractoDto } from './dto/update-extracto.dto';
 import { QueryExtractoDto } from './dto/query-extracto.dto';
+import { AnalizarExtractoDto } from './dto/analizar-extracto.dto';
 
 @ApiTags('extractos-ia')
 @ApiBearerAuth()
@@ -24,6 +36,18 @@ export class ExtractosIaController {
   @Permissions(PERMISSIONS.EXTRACTOS_WRITE)
   cargar(@Body() dto: CreateExtractoDto, @CurrentUser() user: AuthenticatedUser) {
     return this.extractosIaService.cargarExtracto(dto, new Types.ObjectId(user.estudioId));
+  }
+
+  /**
+   * Análisis previo (sin persistir nada): detecta CUIT/período por regex
+   * para que el Frontend pueda sugerir cliente y período antes de que el
+   * contador tenga que elegirlos a mano. Mismo permiso que `cargar` — es
+   * parte del mismo flujo de subida.
+   */
+  @Post('analizar')
+  @Permissions(PERMISSIONS.EXTRACTOS_WRITE)
+  analizar(@Body() dto: AnalizarExtractoDto) {
+    return this.extractosIaService.analizarEncabezado(dto);
   }
 
   @Get()
@@ -51,5 +75,22 @@ export class ExtractosIaController {
       dto.movimientos,
       new Types.ObjectId(user.estudioId),
     );
+  }
+
+  /** Corrige cliente y/o cuenta bancaria de un extracto ya cargado, sin reprocesar el PDF. */
+  @Patch(':id')
+  @Permissions(PERMISSIONS.EXTRACTOS_WRITE)
+  actualizarDatos(
+    @Param('id') id: string,
+    @Body() dto: UpdateExtractoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.extractosIaService.actualizarDatos(id, dto, new Types.ObjectId(user.estudioId));
+  }
+
+  @Delete(':id')
+  @Permissions(PERMISSIONS.EXTRACTOS_WRITE)
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.extractosIaService.eliminar(id, new Types.ObjectId(user.estudioId));
   }
 }

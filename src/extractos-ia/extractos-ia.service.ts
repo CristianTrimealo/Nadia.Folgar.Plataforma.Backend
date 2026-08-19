@@ -1,77 +1,108 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { AI_EXTRACTION_PORT, AiExtractionPort } from './ports/ai-extraction.port';
+import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import {
   EstadoExtracto,
   ExtractoBancario,
   ExtractoBancarioDocument,
-  MovimientoExtracto,
 } from './schemas/extracto-bancario.schema';
 import { CreateExtractoDto } from './dto/create-extracto.dto';
 import { MovimientoDto } from './dto/movimiento.dto';
 import { QueryExtractoDto } from './dto/query-extracto.dto';
+import { AnalizarExtractoDto } from './dto/analizar-extracto.dto';
+import { UpdateExtractoDto } from './dto/update-extracto.dto';
 import { PaginatedResult } from '../common/dto/pagination-query.dto';
+import { CuentasBancariasService } from '../cuentas-bancarias/cuentas-bancarias.service';
+import { ExtractoDeteccionService } from './extracto-deteccion.service';
+import { ProcesarExtractoJobData } from './extractos-ia.processor';
+import { construirMovimientosConValidacion, determinarEstadoFinal } from './validacion-saldo';
+
+/**
+ * Resultado del análisis previo a la carga (`POST /extractos-ia/analizar`):
+ * ayuda a pre-completar cliente y período ANTES de que el contador tenga que
+ * elegirlos, sin persistir nada — es un análisis stateless del PDF.
+ */
+export interface AnalisisExtractoResultado {
+  tieneCapaDeTexto: boolean;
+  cuitDetectado?: string;
+  periodoDetectado?: string;
+}
 
 /** Subtotal de movimientos agrupados por concepto (checklist FOLGAR-008: "agrupa en subtotales por concepto"). */
 export type SubtotalesPorConcepto = Record<string, number>;
 
 /**
- * Orquesta la carga y el procesamiento de extractos bancarios. Depende del
- * contrato `AiExtractionPort` (inyectado vía el token `AI_EXTRACTION_PORT`,
- * nunca de una clase concreta) para que el adapter real se pueda intercambiar
- * el día que se confirme un proveedor de IA, sin tocar este service.
- *
- * El procesamiento es síncrono (no hay cola/worker real todavía — ver nota de
- * scope en `extractos-ia.module.ts`): `cargarExtracto` crea el registro en
- * 'procesando', invoca al puerto y persiste el resultado final ('procesado' o
- * 'error') en la misma llamada.
+ * Orquesta la carga de extractos bancarios y las lecturas/ediciones sobre
+ * ellos. El procesamiento pesado (extracción de texto + IA + validación de
+ * saldo) NO vive acá — `cargarExtracto` solo valida, crea el documento en
+ * `PROCESANDO` y encola un job en la cola `extractos-ia` (BullMQ/Redis);
+ * `ExtractosIaProcessor` es quien lo procesa de forma asíncrona y notifica
+ * el resultado por WebSocket (`RealtimeGateway`) cuando termina. Antes este
+ * método hacía todo eso de forma síncrona dentro de la misma request HTTP —
+ * dejó de alcanzar en cuanto empezaron a llegar extractos reales que
+ * superaban el timeout HTTP del Frontend.
  */
 @Injectable()
 export class ExtractosIaService {
-  private readonly logger = new Logger(ExtractosIaService.name);
-
   constructor(
-    @Inject(AI_EXTRACTION_PORT) private readonly aiExtractionPort: AiExtractionPort,
     @InjectModel(ExtractoBancario.name)
     private readonly extractoModel: Model<ExtractoBancarioDocument>,
+    private readonly pdfTextExtractor: PdfTextExtractorService,
+    private readonly cuentasBancariasService: CuentasBancariasService,
+    private readonly extractoDeteccionService: ExtractoDeteccionService,
+    @InjectQueue('extractos-ia') private readonly extractosQueue: Queue<ProcesarExtractoJobData>,
   ) {}
+
+  /**
+   * Análisis previo a la carga: extrae el texto del PDF (determinístico, sin
+   * IA) y detecta CUIT/período por regex (`ExtractoDeteccionService`) para
+   * que el Frontend pueda pre-completar cliente y período antes de que el
+   * contador los elija a mano. No persiste nada — si el contador nunca
+   * confirma la carga, este análisis no deja rastro.
+   */
+  async analizarEncabezado(dto: AnalizarExtractoDto): Promise<AnalisisExtractoResultado> {
+    const { texto, tieneCapaDeTexto } = await this.pdfTextExtractor.extraer(dto.contenidoBase64);
+
+    if (!tieneCapaDeTexto) {
+      return { tieneCapaDeTexto: false };
+    }
+
+    const { cuitDetectado, periodoDetectado } = this.extractoDeteccionService.detectar(texto);
+    return { tieneCapaDeTexto: true, cuitDetectado, periodoDetectado };
+  }
 
   async cargarExtracto(
     dto: CreateExtractoDto,
     estudioId: Types.ObjectId,
   ): Promise<ExtractoBancarioDocument> {
+    const cuentaBancaria = await this.cuentasBancariasService.findOne(
+      dto.cuentaBancariaId,
+      estudioId,
+    );
+    if (cuentaBancaria.clienteId.toString() !== dto.clienteId) {
+      throw new BadRequestException('La cuenta bancaria debe pertenecer al cliente indicado');
+    }
+
     const extracto = await this.extractoModel.create({
       clienteId: new Types.ObjectId(dto.clienteId),
+      cuentaBancariaId: new Types.ObjectId(dto.cuentaBancariaId),
+      periodo: dto.periodo,
       nombreArchivo: dto.nombreArchivo,
       estado: EstadoExtracto.PROCESANDO,
       movimientos: [],
       estudioId,
     });
 
-    try {
-      const resultado = await this.aiExtractionPort.extraerMovimientos({
-        nombreArchivo: dto.nombreArchivo,
-        contenidoBase64: dto.contenidoBase64,
-      });
+    await this.extractosQueue.add('procesar', {
+      extractoId: extracto._id.toString(),
+      estudioId: estudioId.toString(),
+      nombreArchivo: dto.nombreArchivo,
+      contenidoBase64: dto.contenidoBase64,
+    });
 
-      if (resultado.exitoso) {
-        extracto.estado = EstadoExtracto.PROCESADO;
-        extracto.movimientos = resultado.movimientos as unknown as MovimientoExtracto[];
-        extracto.mensajeError = undefined;
-      } else {
-        extracto.estado = EstadoExtracto.ERROR;
-        extracto.mensajeError = resultado.mensaje ?? 'No se pudo procesar el extracto.';
-      }
-    } catch (error) {
-      const mensaje =
-        error instanceof Error ? error.message : 'Error desconocido al procesar el extracto';
-      this.logger.error(`Falló la extracción IA para "${dto.nombreArchivo}": ${mensaje}`);
-      extracto.estado = EstadoExtracto.ERROR;
-      extracto.mensajeError = mensaje;
-    }
-
-    await extracto.save();
     return extracto;
   }
 
@@ -86,6 +117,10 @@ export class ExtractosIaService {
 
     if (query.clienteId) {
       filter.clienteId = new Types.ObjectId(query.clienteId);
+    }
+
+    if (query.cuentaBancariaId) {
+      filter.cuentaBancariaId = new Types.ObjectId(query.cuentaBancariaId);
     }
 
     if (query.estado) {
@@ -132,19 +167,75 @@ export class ExtractosIaService {
    * resultados editables antes de confirmar"). Este módulo no escribe en
    * Catedral — solo deja los movimientos listos para que el contador los
    * transcriba o copie.
+   *
+   * Cada edición dispara una re-validación de saldo completa contra
+   * `saldoInicialDeclarado` del extracto: si la corrección del contador
+   * resuelve la diferencia, el extracto vuelve a `PROCESADO` solo; si no, se
+   * mantiene (o pasa a) `REQUIERE_REVISION`.
    */
   async actualizarMovimientos(
     id: string,
-    movimientos: MovimientoDto[],
+    movimientosDto: MovimientoDto[],
     estudioId: Types.ObjectId,
   ): Promise<Record<string, unknown> & { subtotalesPorConcepto: SubtotalesPorConcepto }> {
     const extracto = await this.obtenerDocumento(id, estudioId);
+    const movimientos = construirMovimientosConValidacion(
+      movimientosDto,
+      extracto.saldoInicialDeclarado,
+    );
     extracto.movimientos = movimientos;
+
+    if (extracto.estado !== EstadoExtracto.ERROR) {
+      extracto.estado = determinarEstadoFinal(movimientos, extracto.saldoFinalDeclarado);
+    }
+
     await extracto.save();
     return {
       ...extracto.toObject(),
       subtotalesPorConcepto: this.calcularSubtotalesPorConcepto(extracto.movimientos),
     };
+  }
+
+  /**
+   * Corrige el cliente y/o la cuenta bancaria de un extracto ya cargado (p.
+   * ej. se procesó contra el cliente equivocado). No reprocesa el PDF ni
+   * toca `movimientos` — solo repite la misma validación de pertenencia de
+   * `cargarExtracto` con los valores finales (nuevos o los que ya tenía).
+   */
+  async actualizarDatos(
+    id: string,
+    dto: UpdateExtractoDto,
+    estudioId: Types.ObjectId,
+  ): Promise<Record<string, unknown> & { subtotalesPorConcepto: SubtotalesPorConcepto }> {
+    const extracto = await this.obtenerDocumento(id, estudioId);
+
+    if (dto.clienteId || dto.cuentaBancariaId) {
+      const clienteId = dto.clienteId ?? extracto.clienteId.toString();
+      const cuentaBancariaId = dto.cuentaBancariaId ?? extracto.cuentaBancariaId.toString();
+
+      const cuentaBancaria = await this.cuentasBancariasService.findOne(
+        cuentaBancariaId,
+        estudioId,
+      );
+      if (cuentaBancaria.clienteId.toString() !== clienteId) {
+        throw new BadRequestException('La cuenta bancaria debe pertenecer al cliente indicado');
+      }
+
+      extracto.clienteId = new Types.ObjectId(clienteId);
+      extracto.cuentaBancariaId = new Types.ObjectId(cuentaBancariaId);
+      await extracto.save();
+    }
+
+    return {
+      ...extracto.toObject(),
+      subtotalesPorConcepto: this.calcularSubtotalesPorConcepto(extracto.movimientos),
+    };
+  }
+
+  /** Elimina un extracto ya cargado (p. ej. duplicado o subido por error). No hay soft-delete: no queda rastro para reprocesar. */
+  async eliminar(id: string, estudioId: Types.ObjectId): Promise<void> {
+    const extracto = await this.obtenerDocumento(id, estudioId);
+    await extracto.deleteOne();
   }
 
   private async obtenerDocumento(
