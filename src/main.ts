@@ -12,13 +12,13 @@ import { parseCorsOrigins } from './config/cors-origins';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    // bodyLimit por encima del default de Fastify (1 MB): el módulo
-    // portal-clientes (FOLGAR-024) guarda documentos como base64 en el body
-    // del request mientras no hay storage de objetos real — ver la nota de
-    // alcance en `portal-clientes/schemas/documento.schema.ts`. 8 MB cubre
-    // el tope de archivo de `MAX_DOCUMENTO_BYTES` (5 MB) ya codificado en
-    // base64 (~+33%) más el resto del payload JSON.
-    new FastifyAdapter({ bodyLimit: 8 * 1024 * 1024 }),
+    // bodyLimit por encima del default de Fastify (1 MB): portal-clientes
+    // (FOLGAR-024) y la foto de "Mi perfil" (users/dto/update-avatar.dto.ts)
+    // guardan el archivo como base64 en el body del request mientras no hay
+    // storage de objetos real. 16 MB cubre el mayor de los dos topes ya
+    // codificado en base64 (~+33%) — `MAX_AVATAR_BYTES` (10 MB → ~13.3 MB en
+    // base64) — más margen para el resto del payload JSON.
+    new FastifyAdapter({ bodyLimit: 16 * 1024 * 1024 }),
     {
       bufferLogs: true,
     },
@@ -35,6 +35,11 @@ async function bootstrap(): Promise<void> {
       configService.get<string>('CORS_ORIGIN', 'http://localhost:5173'),
       configService.get<string>('NODE_ENV', 'development'),
     ),
+    // El default de @nestjs/platform-fastify para `methods` es 'GET,HEAD,POST'
+    // — sin esto, cualquier PATCH/PUT/DELETE (edición y borrado en toda la
+    // app) falla el preflight y nunca llega a pegarle al Backend desde un
+    // navegador real, aunque funcione perfecto contra supertest/curl.
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 

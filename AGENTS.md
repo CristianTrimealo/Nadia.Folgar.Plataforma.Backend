@@ -6,7 +6,8 @@
 npm install
 cp .env.example .env      # completar MONGODB_URI / JWT_SECRET / JWT_REFRESH_SECRET
 docker compose up -d      # levanta Mongo (y la API si se usa el compose completo)
-npm run start:dev         # API en http://localhost:3000/api/v1, Swagger en /api/docs
+yarn start                # API en http://localhost:3000/api/v1, Swagger en /api/docs
+npm run security:secrets  # escanea archivos trackeados para evitar commitear secretos
 npm run lint
 npm run build
 npm run test

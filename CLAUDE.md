@@ -53,7 +53,7 @@ flowchart TB
 ## Mapa de módulos
 | Módulo (backlog) | Tareas | Carpeta Backend | Estado |
 |---|---|---|---|
-| Fundación Técnica | 001–006 | auth/, roles/, users/, clientes/ | **Completo** — auth JWT+refresh, permisos granulares, maestro Cliente con paginación, seed inicial |
+| Fundación Técnica | 001–006 | auth/, roles/, users/, clientes/ | **Completo** — auth JWT+refresh, permisos granulares, maestro Cliente con paginación, seed inicial. Sumado fuera de backlog (pedido directo de la pantalla "Mi perfil" del Frontend): autogestión del propio usuario — `GET/PATCH /auth/me/profile` (nombre, email, fecha de nacimiento, país/provincia/ciudad, teléfono), `PATCH /auth/me/password` (verifica la actual con argon2) y `PUT /auth/me/avatar` (foto como base64 en Mongo, mismo patrón temporal que `Documento` en portal-clientes — ver la nota en `user.schema.ts`) |
 | Gestión de Proyecto / Mes 1 | 006, 078–081 | — (documentación) | No iniciado |
 | Procesador de Extractos con IA | 007–012 | extractos-ia/ | **Scaffold + procesamiento síncrono** — puerto `AiExtractionPort` + adapter stub determinístico, subtotales por concepto, movimientos editables. Falta proveedor de IA real, testing con extractos reales (FOLGAR-011) |
 | Manual de Marca e Identidad Visual | 013–017 | — (diseño) | No iniciado |
