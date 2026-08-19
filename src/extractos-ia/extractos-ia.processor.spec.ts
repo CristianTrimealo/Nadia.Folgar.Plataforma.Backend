@@ -352,7 +352,12 @@ describe('ExtractosIaProcessor', () => {
       pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
       mockCuentasYReglas();
       mockExtraccionExitosaCon([
-        { patronTexto: 'Comisión mantenimiento', cuentaCodigo: '519', ladoAsiento: 'debe', tipoMovimiento: 'debito' },
+        {
+          patronTexto: 'Comisión mantenimiento',
+          cuentaCodigo: '519',
+          ladoAsiento: 'debe',
+          tipoMovimiento: 'debito',
+        },
       ]);
 
       await processor.process(buildJob());
@@ -377,7 +382,12 @@ describe('ExtractosIaProcessor', () => {
       pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
       mockCuentasYReglas();
       mockExtraccionExitosaCon([
-        { patronTexto: 'Concepto raro', cuentaCodigo: '999-NO-EXISTE', ladoAsiento: 'debe', tipoMovimiento: null },
+        {
+          patronTexto: 'Concepto raro',
+          cuentaCodigo: '999-NO-EXISTE',
+          ladoAsiento: 'debe',
+          tipoMovimiento: null,
+        },
       ]);
 
       await processor.process(buildJob());
@@ -392,7 +402,12 @@ describe('ExtractosIaProcessor', () => {
       pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
       mockCuentasYReglas();
       mockExtraccionExitosaCon([
-        { patronTexto: 'Comisión mantenimiento', cuentaCodigo: '519', ladoAsiento: 'debe', tipoMovimiento: 'debito' },
+        {
+          patronTexto: 'Comisión mantenimiento',
+          cuentaCodigo: '519',
+          ladoAsiento: 'debe',
+          tipoMovimiento: 'debito',
+        },
       ]);
       reglasClasificacionServiceMock.crearSugeridaPorIa.mockRejectedValue(new Error('boom'));
 

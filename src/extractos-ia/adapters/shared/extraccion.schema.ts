@@ -1,5 +1,8 @@
 import { z } from 'zod/v4';
-import type { CuentaContableDisponible, ReglaExistenteResumen } from '../../ports/ai-extraction.port';
+import type {
+  CuentaContableDisponible,
+  ReglaExistenteResumen,
+} from '../../ports/ai-extraction.port';
 
 /**
  * Schema de salida estructurada y prompt de sistema, compartidos entre los
