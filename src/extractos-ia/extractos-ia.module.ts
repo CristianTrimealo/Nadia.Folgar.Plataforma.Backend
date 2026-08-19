@@ -13,6 +13,8 @@ import { OpenAiExtractionAdapter } from './adapters/openai-extraction.adapter';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import { ExtractoDeteccionService } from './extracto-deteccion.service';
 import { CuentasBancariasModule } from '../cuentas-bancarias/cuentas-bancarias.module';
+import { PlanCuentasModule } from '../plan-cuentas/plan-cuentas.module';
+import { ReglasClasificacionModule } from '../reglas-clasificacion/reglas-clasificacion.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 
 /**
@@ -41,12 +43,20 @@ import { RealtimeModule } from '../realtime/realtime.module';
  * desarrollo/tests; `anthropic` usa Claude Sonnet 5; `openai` usa GPT-5.1).
  * `ExtractosIaService`, `ExtractosIaProcessor` y `ExtractosIaController` no
  * requieren cambios al cambiar de proveedor — solo este factory.
+ *
+ * `ExtractosIaProcessor` también inyecta `PlanCuentasModule` y
+ * `ReglasClasificacionModule`: en la misma llamada de IA que transcribe los
+ * movimientos, le pasa el plan de cuentas del cliente y le pide que infiera
+ * reglas de clasificación para patrones recurrentes (`reglasSugeridas`),
+ * que quedan creadas y activas de inmediato con `procedencia: 'ia'`.
  */
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: ExtractoBancario.name, schema: ExtractoBancarioSchema }]),
     BullModule.registerQueue({ name: 'extractos-ia' }),
     CuentasBancariasModule,
+    PlanCuentasModule,
+    ReglasClasificacionModule,
     RealtimeModule,
   ],
   controllers: [ExtractosIaController],

@@ -77,6 +77,7 @@ export class ExtractosIaService {
   async cargarExtracto(
     dto: CreateExtractoDto,
     estudioId: Types.ObjectId,
+    userId: Types.ObjectId,
   ): Promise<ExtractoBancarioDocument> {
     const cuentaBancaria = await this.cuentasBancariasService.findOne(
       dto.cuentaBancariaId,
@@ -99,6 +100,7 @@ export class ExtractosIaService {
     await this.extractosQueue.add('procesar', {
       extractoId: extracto._id.toString(),
       estudioId: estudioId.toString(),
+      userId: userId.toString(),
       nombreArchivo: dto.nombreArchivo,
       contenidoBase64: dto.contenidoBase64,
     });

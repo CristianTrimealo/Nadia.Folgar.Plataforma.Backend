@@ -11,11 +11,16 @@ import {
 } from './schemas/extracto-bancario.schema';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
+import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
 
 describe('ExtractosIaProcessor', () => {
   let processor: ExtractosIaProcessor;
   const estudioId = new Types.ObjectId().toString();
+  const userId = new Types.ObjectId().toString();
   const extractoId = new Types.ObjectId().toString();
+  const clienteId = new Types.ObjectId();
+  const cuentaBancariaId = new Types.ObjectId();
 
   const extractoModelMock: any = { findById: jest.fn() };
 
@@ -24,10 +29,14 @@ describe('ExtractosIaProcessor', () => {
   const fakePort: any = { extraerMovimientos: jest.fn() };
   const pdfTextExtractorMock = { extraer: jest.fn() };
   const realtimeGatewayMock = { emitToEstudio: jest.fn() };
+  const planCuentasServiceMock = { findAll: jest.fn() };
+  const reglasClasificacionServiceMock = { findAll: jest.fn(), crearSugeridaPorIa: jest.fn() };
 
   function buildExtractoInstance(overrides: Record<string, unknown> = {}): any {
     const instance: any = {
       _id: extractoId,
+      clienteId,
+      cuentaBancariaId,
       nombreArchivo: 'extracto.pdf',
       estado: EstadoExtracto.PROCESANDO,
       movimientos: [],
@@ -47,6 +56,7 @@ describe('ExtractosIaProcessor', () => {
       data: {
         extractoId,
         estudioId,
+        userId,
         nombreArchivo: 'extracto.pdf',
         contenidoBase64: 'QQ==',
         ...overrides,
@@ -56,6 +66,17 @@ describe('ExtractosIaProcessor', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default: cliente sin plan de cuentas ni reglas — así los tests que no
+    // les prestan atención (transcripción/validación de saldo) no dependen
+    // de esto y no se disparan intentos de crear reglas.
+    planCuentasServiceMock.findAll.mockResolvedValue({ data: [], total: 0, page: 1, limit: 100 });
+    reglasClasificacionServiceMock.findAll.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 100,
+    });
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         ExtractosIaProcessor,
@@ -63,6 +84,8 @@ describe('ExtractosIaProcessor', () => {
         { provide: getModelToken(ExtractoBancario.name), useValue: extractoModelMock },
         { provide: PdfTextExtractorService, useValue: pdfTextExtractorMock },
         { provide: RealtimeGateway, useValue: realtimeGatewayMock },
+        { provide: PlanCuentasService, useValue: planCuentasServiceMock },
+        { provide: ReglasClasificacionService, useValue: reglasClasificacionServiceMock },
       ],
     }).compile();
 
@@ -90,6 +113,7 @@ describe('ExtractosIaProcessor', () => {
       movimientos: [
         { fecha: '2026-07-01', concepto: 'Transferencia recibida', monto: 1000, tipo: 'credito' },
       ],
+      reglasSugeridas: [],
       mensaje: 'ok',
     });
 
@@ -140,6 +164,7 @@ describe('ExtractosIaProcessor', () => {
     fakePort.extraerMovimientos.mockResolvedValue({
       exitoso: false,
       movimientos: [],
+      reglasSugeridas: [],
       mensaje: 'No se pudo estructurar el extracto',
     });
 
@@ -170,6 +195,7 @@ describe('ExtractosIaProcessor', () => {
         exitoso: true,
         saldoInicialDeclarado: 47670.26,
         saldoFinalDeclarado: 507547.36,
+        reglasSugeridas: [],
         movimientos: [
           {
             fecha: '01/07/24',
@@ -219,6 +245,7 @@ describe('ExtractosIaProcessor', () => {
         exitoso: true,
         saldoInicialDeclarado: 1000,
         saldoFinalDeclarado: 1200,
+        reglasSugeridas: [],
         movimientos: [
           {
             fecha: '01/01/26',
@@ -236,8 +263,11 @@ describe('ExtractosIaProcessor', () => {
       await processor.process(buildJob());
 
       expect(fakePort.extraerMovimientos).toHaveBeenCalledTimes(2);
-      const [, segundaLlamada] = fakePort.extraerMovimientos.mock.calls;
+      const [primeraLlamada, segundaLlamada] = fakePort.extraerMovimientos.mock.calls;
       expect(segundaLlamada[0].pistaRevision).toContain('100');
+      // El reintento no vuelve a pedir contexto de clasificación — solo el primer intento lo tiene.
+      expect(primeraLlamada[0].cuentasContablesDisponibles).toBeDefined();
+      expect(segundaLlamada[0].cuentasContablesDisponibles).toBeUndefined();
       expect(instance.estado).toBe(EstadoExtracto.REQUIERE_REVISION);
       expect(instance.movimientos[0].validacionSaldo).toBe(ValidacionSaldo.DIFERENCIA);
     });
@@ -251,6 +281,7 @@ describe('ExtractosIaProcessor', () => {
         exitoso: true,
         saldoInicialDeclarado: 1000,
         saldoFinalDeclarado: 1200,
+        reglasSugeridas: [],
         movimientos: [
           {
             fecha: '01/01/26',
@@ -265,6 +296,7 @@ describe('ExtractosIaProcessor', () => {
         exitoso: true,
         saldoInicialDeclarado: 1000,
         saldoFinalDeclarado: 1200,
+        reglasSugeridas: [],
         movimientos: [
           {
             fecha: '01/01/26',
@@ -281,6 +313,105 @@ describe('ExtractosIaProcessor', () => {
       expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
       expect(instance.movimientos[0].monto).toBe(200);
       expect(instance.movimientos[0].validacionSaldo).toBe(ValidacionSaldo.OK);
+    });
+  });
+
+  describe('inferencia de reglas de clasificación', () => {
+    const cuentaContableId = new Types.ObjectId().toString();
+
+    function mockCuentasYReglas() {
+      planCuentasServiceMock.findAll.mockResolvedValue({
+        data: [
+          {
+            _id: cuentaContableId,
+            codigo: '519',
+            nombre: 'Gastos Bancarios',
+            naturaleza: 'deudora',
+            activo: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 100,
+      });
+    }
+
+    function mockExtraccionExitosaCon(reglasSugeridas: unknown[]) {
+      fakePort.extraerMovimientos.mockResolvedValue({
+        exitoso: true,
+        movimientos: [
+          { fecha: '2026-08-10', concepto: 'Comisión mantenimiento', monto: -1200, tipo: 'debito' },
+        ],
+        reglasSugeridas,
+      });
+    }
+
+    it('crea una regla por cada sugerencia cuyo código matchea una cuenta real', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      mockCuentasYReglas();
+      mockExtraccionExitosaCon([
+        { patronTexto: 'Comisión mantenimiento', cuentaCodigo: '519', ladoAsiento: 'debe', tipoMovimiento: 'debito' },
+      ]);
+
+      await processor.process(buildJob());
+
+      expect(reglasClasificacionServiceMock.crearSugeridaPorIa).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clienteId: clienteId.toString(),
+          cuentaBancariaId: cuentaBancariaId.toString(),
+          cuentaContableId,
+          ladoAsiento: 'debe',
+          patronTexto: 'Comisión mantenimiento',
+          tipoMovimiento: 'debito',
+        }),
+        expect.any(Types.ObjectId),
+        expect.any(Types.ObjectId),
+      );
+    });
+
+    it('descarta (con log, sin fallar el job) una sugerencia con código de cuenta inexistente', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      mockCuentasYReglas();
+      mockExtraccionExitosaCon([
+        { patronTexto: 'Concepto raro', cuentaCodigo: '999-NO-EXISTE', ladoAsiento: 'debe', tipoMovimiento: null },
+      ]);
+
+      await processor.process(buildJob());
+
+      expect(reglasClasificacionServiceMock.crearSugeridaPorIa).not.toHaveBeenCalled();
+      expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
+    });
+
+    it('un error al crear una regla sugerida no rompe el guardado del extracto', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      mockCuentasYReglas();
+      mockExtraccionExitosaCon([
+        { patronTexto: 'Comisión mantenimiento', cuentaCodigo: '519', ladoAsiento: 'debe', tipoMovimiento: 'debito' },
+      ]);
+      reglasClasificacionServiceMock.crearSugeridaPorIa.mockRejectedValue(new Error('boom'));
+
+      await processor.process(buildJob());
+
+      expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
+      expect(realtimeGatewayMock.emitToEstudio).toHaveBeenCalled();
+    });
+
+    it('no intenta crear nada si la IA no sugiere reglas', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      mockCuentasYReglas();
+      mockExtraccionExitosaCon([]);
+
+      await processor.process(buildJob());
+
+      expect(reglasClasificacionServiceMock.crearSugeridaPorIa).not.toHaveBeenCalled();
     });
   });
 });

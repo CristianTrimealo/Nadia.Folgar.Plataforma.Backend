@@ -16,6 +16,7 @@ import { ExtractoDeteccionService } from './extracto-deteccion.service';
 describe('ExtractosIaService', () => {
   let service: ExtractosIaService;
   const estudioId = new Types.ObjectId();
+  const userId = new Types.ObjectId();
   const clienteId = new Types.ObjectId().toString();
   const cuentaBancariaId = new Types.ObjectId().toString();
 
@@ -90,7 +91,7 @@ describe('ExtractosIaService', () => {
         clienteId: { toString: () => new Types.ObjectId().toString() },
       });
 
-      await expect(service.cargarExtracto(createDto, estudioId)).rejects.toThrow(
+      await expect(service.cargarExtracto(createDto, estudioId, userId)).rejects.toThrow(
         BadRequestException,
       );
       expect(extractoModelMock.create).not.toHaveBeenCalled();
@@ -102,7 +103,7 @@ describe('ExtractosIaService', () => {
       const instance = buildExtractoInstance({ _id: nuevoId });
       extractoModelMock.create.mockResolvedValue(instance);
 
-      const result = await service.cargarExtracto(createDto, estudioId);
+      const result = await service.cargarExtracto(createDto, estudioId, userId);
 
       expect(extractoModelMock.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -116,6 +117,7 @@ describe('ExtractosIaService', () => {
       expect(queueMock.add).toHaveBeenCalledWith('procesar', {
         extractoId: nuevoId,
         estudioId: estudioId.toString(),
+        userId: userId.toString(),
         nombreArchivo: 'extracto.pdf',
         contenidoBase64: 'QQ==',
       });

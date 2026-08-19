@@ -31,11 +31,15 @@ import { AnalizarExtractoDto } from './dto/analizar-extracto.dto';
 export class ExtractosIaController {
   constructor(private readonly extractosIaService: ExtractosIaService) {}
 
-  /** Carga el PDF (base64) y lo procesa de forma síncrona contra el puerto de IA. */
+  /** Crea el extracto y encola su procesamiento asíncrono contra el puerto de IA (ver `ExtractosIaProcessor`). */
   @Post()
   @Permissions(PERMISSIONS.EXTRACTOS_WRITE)
   cargar(@Body() dto: CreateExtractoDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.extractosIaService.cargarExtracto(dto, new Types.ObjectId(user.estudioId));
+    return this.extractosIaService.cargarExtracto(
+      dto,
+      new Types.ObjectId(user.estudioId),
+      new Types.ObjectId(user.userId),
+    );
   }
 
   /**

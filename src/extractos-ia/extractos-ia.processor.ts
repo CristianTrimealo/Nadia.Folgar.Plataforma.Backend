@@ -6,7 +6,6 @@ import { Job } from 'bullmq';
 import {
   AI_EXTRACTION_PORT,
   AiExtractionPort,
-  CuentaContableDisponible,
   MovimientoExtraido,
   ReglaClasificacionSugerida,
   ReglaExistenteResumen,
@@ -21,7 +20,9 @@ import {
 } from './schemas/extracto-bancario.schema';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
+import { CuentaContableDocument } from '../plan-cuentas/schemas/cuenta-contable.schema';
 import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
+import { LadoAsiento } from '../reglas-clasificacion/schemas/regla-clasificacion.schema';
 import {
   MovimientoValidable,
   construirMovimientosConValidacion,
@@ -87,6 +88,7 @@ export class ExtractosIaProcessor extends WorkerHost {
     }
 
     let reglasSugeridas: ReglaClasificacionSugerida[] = [];
+    let cuentasContables: CuentaContableDocument[] = [];
 
     try {
       const { texto, tieneCapaDeTexto } = await this.pdfTextExtractor.extraer(contenidoBase64);
@@ -100,16 +102,26 @@ export class ExtractosIaProcessor extends WorkerHost {
         return;
       }
 
-      const { cuentasContablesDisponibles, reglasExistentes } = await this.armarContextoClasificacion(
+      const estudioObjectId = new Types.ObjectId(estudioId);
+      cuentasContables = await this.obtenerCuentasContablesActivas(
+        extracto.clienteId,
+        estudioObjectId,
+      );
+      const reglasExistentes = await this.obtenerReglasExistentes(
         extracto.clienteId,
         extracto.cuentaBancariaId,
-        estudioId,
+        estudioObjectId,
+        cuentasContables,
       );
 
       let resultado = await this.aiExtractionPort.extraerMovimientos({
         nombreArchivo,
         texto,
-        cuentasContablesDisponibles,
+        cuentasContablesDisponibles: cuentasContables.map((c) => ({
+          codigo: c.codigo,
+          nombre: c.nombre,
+          naturaleza: c.naturaleza,
+        })),
         reglasExistentes,
       });
 
@@ -124,7 +136,7 @@ export class ExtractosIaProcessor extends WorkerHost {
       // Se captura del primer intento — el reintento (abajo) es solo para
       // corregir filas con diferencia de saldo, no vuelve a pedir contexto
       // de plan de cuentas/reglas ni a inferir reglas de nuevo.
-      reglasSugeridas = resultado.reglasSugeridas;
+      reglasSugeridas = resultado.reglasSugeridas ?? [];
 
       let movimientos = construirMovimientosConValidacion(
         this.mapearExtraidos(resultado.movimientos),
@@ -166,68 +178,56 @@ export class ExtractosIaProcessor extends WorkerHost {
     }
 
     await extracto.save();
-    await this.crearReglasSugeridas(reglasSugeridas, extracto, estudioId, userId);
+    await this.crearReglasSugeridas(reglasSugeridas, cuentasContables, extracto, estudioId, userId);
     this.notificar(estudioId, extracto);
   }
 
-  /** Junta el plan de cuentas y las reglas ya activas del cliente/cuenta bancaria, en el formato liviano que espera el puerto de IA. */
-  private async armarContextoClasificacion(
+  private async obtenerCuentasContablesActivas(
+    clienteId: Types.ObjectId,
+    estudioId: Types.ObjectId,
+  ): Promise<CuentaContableDocument[]> {
+    const cuentas = await this.planCuentasService.findAll(
+      { clienteId: clienteId.toString(), limit: 100 },
+      estudioId,
+    );
+    return cuentas.data.filter((c) => c.activo);
+  }
+
+  /** Reglas ya activas del cliente que aplican a esta cuenta bancaria (propias o sin scope), en el formato liviano que espera el puerto de IA. */
+  private async obtenerReglasExistentes(
     clienteId: Types.ObjectId,
     cuentaBancariaId: Types.ObjectId,
-    estudioId: string,
-  ): Promise<{
-    cuentasContablesDisponibles: CuentaContableDisponible[];
-    reglasExistentes: ReglaExistenteResumen[];
-  }> {
-    const estudioObjectId = new Types.ObjectId(estudioId);
-
-    const [cuentas, reglas] = await Promise.all([
-      this.planCuentasService.findAll(
-        { clienteId: clienteId.toString(), limit: 100 },
-        estudioObjectId,
-      ),
-      this.reglasClasificacionService.findAll(
-        { clienteId: clienteId.toString(), activa: true, limit: 100 },
-        estudioObjectId,
-      ),
-    ]);
-
-    const cuentasActivas = cuentas.data.filter((c) => c.activo);
-    const cuentaCodigoPorId = new Map(cuentasActivas.map((c) => [c._id.toString(), c.codigo]));
-
-    const reglasDeEstaCuenta = reglas.data.filter(
-      (r) => !r.cuentaBancariaId || r.cuentaBancariaId.toString() === cuentaBancariaId.toString(),
+    estudioId: Types.ObjectId,
+    cuentasContables: CuentaContableDocument[],
+  ): Promise<ReglaExistenteResumen[]> {
+    const reglas = await this.reglasClasificacionService.findAll(
+      { clienteId: clienteId.toString(), activa: true, limit: 100 },
+      estudioId,
     );
+    const cuentaCodigoPorId = new Map(cuentasContables.map((c) => [c._id.toString(), c.codigo]));
 
-    return {
-      cuentasContablesDisponibles: cuentasActivas.map((c) => ({
-        codigo: c.codigo,
-        nombre: c.nombre,
-        naturaleza: c.naturaleza,
-      })),
-      reglasExistentes: reglasDeEstaCuenta
-        .map((r) => ({
-          patronTexto: r.patronTexto,
-          cuentaCodigo: cuentaCodigoPorId.get(r.cuentaContableId.toString()) ?? '',
-        }))
-        .filter((r) => r.cuentaCodigo),
-    };
+    return reglas.data
+      .filter(
+        (r) => !r.cuentaBancariaId || r.cuentaBancariaId.toString() === cuentaBancariaId.toString(),
+      )
+      .map((r) => ({
+        patronTexto: r.patronTexto,
+        cuentaCodigo: cuentaCodigoPorId.get(r.cuentaContableId.toString()) ?? '',
+      }))
+      .filter((r) => r.cuentaCodigo);
   }
 
   /** Crea una `ReglaClasificacion` por cada sugerencia cuyo código de cuenta matchea una cuenta real. Nunca rompe el job por una sugerencia inválida. */
   private async crearReglasSugeridas(
     sugerencias: ReglaClasificacionSugerida[],
+    cuentasContables: CuentaContableDocument[],
     extracto: ExtractoBancarioDocument,
     estudioId: string,
     userId: string,
   ): Promise<void> {
     if (sugerencias.length === 0) return;
 
-    const cuentas = await this.planCuentasService.findAll(
-      { clienteId: extracto.clienteId.toString(), limit: 100 },
-      new Types.ObjectId(estudioId),
-    );
-    const cuentaIdPorCodigo = new Map(cuentas.data.map((c) => [c.codigo, c._id.toString()]));
+    const cuentaIdPorCodigo = new Map(cuentasContables.map((c) => [c.codigo, c._id.toString()]));
 
     for (const sugerencia of sugerencias) {
       const cuentaContableId = cuentaIdPorCodigo.get(sugerencia.cuentaCodigo);
@@ -245,7 +245,7 @@ export class ExtractosIaProcessor extends WorkerHost {
             cuentaBancariaId: extracto.cuentaBancariaId.toString(),
             conceptoContable: sugerencia.patronTexto,
             cuentaContableId,
-            ladoAsiento: sugerencia.ladoAsiento,
+            ladoAsiento: sugerencia.ladoAsiento as LadoAsiento,
             patronTexto: sugerencia.patronTexto,
             tipoMovimiento: sugerencia.tipoMovimiento,
           },
@@ -254,7 +254,9 @@ export class ExtractosIaProcessor extends WorkerHost {
         );
       } catch (error) {
         const mensaje = error instanceof Error ? error.message : 'Error desconocido';
-        this.logger.warn(`No se pudo crear la regla sugerida por IA ("${sugerencia.patronTexto}"): ${mensaje}`);
+        this.logger.warn(
+          `No se pudo crear la regla sugerida por IA ("${sugerencia.patronTexto}"): ${mensaje}`,
+        );
       }
     }
   }
