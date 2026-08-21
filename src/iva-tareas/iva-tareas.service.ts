@@ -1,11 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { Cliente, ClienteDocument, RegimenFiscal } from '../clientes/schemas/cliente.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { RoleDocument } from '../roles/schemas/role.schema';
+import { PERMISSIONS } from '../common/constants/permissions';
 import { PaginatedResult } from '../common/dto/pagination-query.dto';
 import {
   ChecklistItem,
+  Etiqueta,
   EstadoTarea,
   Jurisdiccion,
   TareaPresentacion,
@@ -17,11 +21,28 @@ import { QueryTareaPresentacionDto } from './dto/query-tarea-presentacion.dto';
 import { QueryKanbanDto } from './dto/query-kanban.dto';
 import { MoverTareaDto } from './dto/mover-tarea.dto';
 import { ChecklistItemDto } from './dto/checklist-item.dto';
+import { EtiquetaDto } from './dto/etiqueta.dto';
+import { AnalizarDocumentoTareasDto } from './dto/analizar-documento-tareas.dto';
+import { ImportarTareasDocumentoDto } from './dto/importar-tareas-documento.dto';
+import { DocumentoTextoExtractorService } from './documento-texto-extractor.service';
+import {
+  AI_TAREAS_DOCUMENTO_PORT,
+  AiTareasDocumentoPort,
+  TareaPropuestaIA,
+} from './ports/ai-tareas-documento.port';
 
 export interface GenerarTareasResultado {
   evaluados: number;
   creadas: number;
   omitidas: number;
+}
+
+/** Miembro asignable del tablero, tal como lo consume el picker del Frontend. */
+export interface MiembroTablero {
+  _id: string;
+  nombre: string;
+  /** `data:<contentType>;base64,<...>` listo para un <img src>, o null si no cargó foto. */
+  avatarDataUrl: string | null;
 }
 
 /** Período fiscal actual en formato "YYYY-MM" (calendario de Buenos Aires, sin corrimiento de zona horaria relevante para este caso de uso). */
@@ -38,7 +59,45 @@ export class IvaTareasService {
     @InjectModel(TareaPresentacion.name)
     private readonly tareaModel: Model<TareaPresentacionDocument>,
     @InjectModel(Cliente.name) private readonly clienteModel: Model<ClienteDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly documentoTextoExtractorService: DocumentoTextoExtractorService,
+    @Inject(AI_TAREAS_DOCUMENTO_PORT)
+    private readonly aiTareasDocumentoPort: AiTareasDocumentoPort,
   ) {}
+
+  /**
+   * Usuarios internos del estudio (no de portal de clientes) que pueden ver
+   * este tablero — mismo criterio que agrupa permisos por rol que usa
+   * `AuthService.buildUserContext` para el JWT, pero acá evaluado para
+   * *otros* usuarios en vez del que hace la request. Alimenta el picker de
+   * "Asignar miembro/s" del Frontend: antes ese picker dependía de listar
+   * `/users` (permiso `users.read`, que el rol "contador" no tiene), así que
+   * quedaba degradado a "asignarme a mí". Este endpoint solo pide
+   * `iva-tareas.read`, que sí tiene cualquiera que use el tablero.
+   */
+  async findMiembrosDelTablero(estudioId: Types.ObjectId): Promise<MiembroTablero[]> {
+    const usuarios = await this.userModel
+      .find({ estudioId, activo: true, clienteId: { $exists: false } })
+      .populate('roleIds')
+      .exec();
+
+    return usuarios
+      .filter((usuario) => {
+        const roles = (usuario.roleIds as unknown as RoleDocument[]).filter(
+          (role): role is RoleDocument =>
+            typeof role === 'object' && role !== null && 'permisos' in role,
+        );
+        return roles.some((role) => role.permisos.includes(PERMISSIONS.IVA_TAREAS_READ));
+      })
+      .map((usuario) => ({
+        _id: usuario._id.toString(),
+        nombre: usuario.nombre,
+        avatarDataUrl:
+          usuario.avatarContentType && usuario.avatarBase64
+            ? `data:${usuario.avatarContentType};base64,${usuario.avatarBase64}`
+            : null,
+      }));
+  }
 
   // ── Generación mensual automática ────────────────────────────────────
 
@@ -151,6 +210,80 @@ export class IvaTareasService {
     );
   }
 
+  // ── Importar tareas desde documento ───────────────────────────────────
+
+  /**
+   * Análisis previo (no persiste nada): extrae el texto del documento
+   * (determinístico) y se lo pasa a la IA para que proponga una lista de
+   * tareas — el Frontend las muestra en el paso de revisión de
+   * `ImportarTareasDialog` y recién se crean cuando el contador confirma con
+   * `importarTareasDocumento`. Mismo espíritu que `analizarEncabezado` en
+   * extractos-ia: no bloquea nada si falla, el contador puede seguir
+   * completando a mano.
+   */
+  async analizarDocumento(
+    dto: AnalizarDocumentoTareasDto,
+  ): Promise<{ nombreArchivo: string; tareas: TareaPropuestaIA[] }> {
+    const { texto, legible } = await this.documentoTextoExtractorService.extraer(
+      dto.nombreArchivo,
+      dto.contenidoBase64,
+    );
+
+    if (!legible) {
+      throw new BadRequestException(
+        'No se pudo leer texto de este documento (¿está vacío, escaneado, o es un formato no soportado?).',
+      );
+    }
+
+    const resultado = await this.aiTareasDocumentoPort.analizarDocumento({
+      nombreArchivo: dto.nombreArchivo,
+      texto,
+    });
+
+    if (!resultado.exitoso) {
+      throw new BadRequestException(resultado.mensaje ?? 'No se pudo analizar el documento.');
+    }
+
+    return { nombreArchivo: dto.nombreArchivo, tareas: resultado.tareas };
+  }
+
+  /**
+   * Confirma la importación: crea una tarjeta por cada tarea del lote que el
+   * contador dejó tildada en la revisión, todas en "Pendiente" para el mismo
+   * cliente — sin jurisdicción (ver nota en el schema) y con `periodo` del
+   * mes en curso, mismo criterio que `generarTareasDelMes`.
+   */
+  async importarTareasDocumento(
+    dto: ImportarTareasDocumentoDto,
+    estudioId: Types.ObjectId,
+  ): Promise<{ creadas: number }> {
+    const clienteExiste = await this.clienteModel.exists({ _id: dto.clienteId, estudioId }).exec();
+    if (!clienteExiste) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
+
+    let posicion = await this.tareaModel
+      .countDocuments({ estudioId, estado: EstadoTarea.PENDIENTE })
+      .exec();
+
+    let creadas = 0;
+    for (const tarea of dto.tareas) {
+      await this.tareaModel.create({
+        clienteId: new Types.ObjectId(dto.clienteId),
+        titulo: tarea.titulo,
+        descripcion: tarea.descripcion,
+        periodo: periodoActual(),
+        estado: EstadoTarea.PENDIENTE,
+        posicion: posicion++,
+        checklist: (tarea.checklist ?? []).map((texto) => ({ texto, completado: false })),
+        estudioId,
+      });
+      creadas += 1;
+    }
+
+    return { creadas };
+  }
+
   // ── Kanban ──────────────────────────────────────────────────────────
 
   /**
@@ -170,15 +303,17 @@ export class IvaTareasService {
     if (filtros.jurisdiccion) {
       filter.jurisdiccion = filtros.jurisdiccion;
     }
-    if (filtros.asignadoA) {
-      filter.asignadoA = new Types.ObjectId(filtros.asignadoA);
+    if (filtros.miembro) {
+      // Igualdad simple sobre un campo array: Mongo la interpreta como
+      // "el array contiene este valor" — no hace falta $elemMatch acá.
+      filter.asignados = new Types.ObjectId(filtros.miembro);
     }
 
     return this.tareaModel
       .find(filter)
       .sort({ estado: 1, posicion: 1 })
       .populate('clienteId', 'nombre cuit regimenFiscal')
-      .populate('asignadoA', 'nombre email')
+      .populate('asignados', 'nombre email')
       .exec();
   }
 
@@ -248,6 +383,10 @@ export class IvaTareasService {
     }));
   }
 
+  private mapEtiquetas(items?: EtiquetaDto[]): Etiqueta[] {
+    return (items ?? []).map((item) => ({ texto: item.texto, color: item.color }));
+  }
+
   // ── CRUD paginado ───────────────────────────────────────────────────
 
   async findAllTareas(
@@ -265,8 +404,8 @@ export class IvaTareasService {
     if (query.estado) {
       filter.estado = query.estado;
     }
-    if (query.asignadoA) {
-      filter.asignadoA = new Types.ObjectId(query.asignadoA);
+    if (query.miembro) {
+      filter.asignados = new Types.ObjectId(query.miembro);
     }
     if (query.clienteId) {
       filter.clienteId = new Types.ObjectId(query.clienteId);
@@ -286,7 +425,7 @@ export class IvaTareasService {
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('clienteId', 'nombre cuit regimenFiscal')
-        .populate('asignadoA', 'nombre email')
+        .populate('asignados', 'nombre email')
         .exec(),
       this.tareaModel.countDocuments(filter).exec(),
     ]);
@@ -315,8 +454,13 @@ export class IvaTareasService {
       periodo: dto.periodo,
       estado,
       posicion,
-      asignadoA: dto.asignadoA ? new Types.ObjectId(dto.asignadoA) : undefined,
+      asignados: (dto.asignados ?? []).map((id) => new Types.ObjectId(id)),
+      descripcion: dto.descripcion,
       checklist: this.mapChecklist(dto.checklist),
+      prioridad: dto.prioridad,
+      etiquetas: this.mapEtiquetas(dto.etiquetas),
+      portadaColor: dto.portadaColor,
+      titulo: dto.titulo,
       estudioId,
     });
   }
@@ -345,14 +489,64 @@ export class IvaTareasService {
     if (dto.periodo) {
       tarea.periodo = dto.periodo;
     }
-    if (dto.asignadoA !== undefined) {
-      tarea.asignadoA = dto.asignadoA ? new Types.ObjectId(dto.asignadoA) : undefined;
+    if (dto.asignados) {
+      tarea.asignados = dto.asignados.map((id) => new Types.ObjectId(id));
+    }
+    // A diferencia de `prioridad`/`portadaColor`, acá no hace falta el truco de
+    // `null`: `@IsString()` ya deja pasar `''` sin problema, así que un string
+    // vacío alcanza para "borrar" la descripción.
+    if (dto.descripcion !== undefined) {
+      tarea.descripcion = dto.descripcion || undefined;
     }
     if (dto.checklist) {
       tarea.checklist = this.mapChecklist(dto.checklist);
     }
+    // `prioridad`/`portadaColor` aceptan `null` explícito para "quitar":
+    // `@IsOptional()` en el DTO deja pasar `null` sin correr `@IsEnum`/`@Matches`,
+    // y acá se traduce a `undefined` de Mongo.
+    if (dto.prioridad !== undefined) {
+      tarea.prioridad = dto.prioridad ?? undefined;
+    }
+    if (dto.etiquetas) {
+      tarea.etiquetas = this.mapEtiquetas(dto.etiquetas);
+    }
+    if (dto.portadaColor !== undefined) {
+      tarea.portadaColor = dto.portadaColor ?? undefined;
+    }
+    // Igual criterio que `descripcion`: un string vacío alcanza para "borrarlo", no hace
+    // falta el truco de `null`. Solo lo usan las tarjetas importadas desde documento — el
+    // lápiz de `KanbanCard` las edita a través de acá.
+    if (dto.titulo !== undefined) {
+      tarea.titulo = dto.titulo || undefined;
+    }
 
     await tarea.save();
     return tarea;
+  }
+
+  /**
+   * Borrado real de una tarea de presentación (a diferencia de `Cliente`, que
+   * se desactiva — acá no hay un concepto de "tarea inactiva" que tenga
+   * sentido para el equipo, y el Frontend la ofrece desde el menú rápido de
+   * la tarjeta). Renumera la columna de origen igual que la mitad
+   * "columna de origen" de `moverTarea`, para no dejar huecos en `posicion`.
+   */
+  async removeTarea(id: string, estudioId: Types.ObjectId): Promise<void> {
+    const tarea = await this.findOneTarea(id, estudioId);
+
+    await this.tareaModel.deleteOne({ _id: tarea._id }).exec();
+
+    const restantes = await this.tareaModel
+      .find({ estudioId, estado: tarea.estado })
+      .sort({ posicion: 1 })
+      .exec();
+
+    await Promise.all(
+      restantes.map((t, index) =>
+        t.posicion === index
+          ? Promise.resolve()
+          : this.tareaModel.updateOne({ _id: t._id }, { posicion: index }).exec(),
+      ),
+    );
   }
 }

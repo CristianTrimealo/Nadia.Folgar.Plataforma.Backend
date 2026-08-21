@@ -1,9 +1,20 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { IvaTareasService } from './iva-tareas.service';
 import { EstadoTarea, Jurisdiccion, TareaPresentacion } from './schemas/tarea-presentacion.schema';
 import { Cliente, RegimenFiscal } from '../clientes/schemas/cliente.schema';
+import { User } from '../users/schemas/user.schema';
+import { PERMISSIONS } from '../common/constants/permissions';
+import { DocumentoTextoExtractorService } from './documento-texto-extractor.service';
+import { AI_TAREAS_DOCUMENTO_PORT } from './ports/ai-tareas-documento.port';
+
+/** Ninguno de estos tests ejercita `analizarDocumento`/`importarTareasDocumento` — solo hace falta para satisfacer el DI. */
+const aiTareasDocumentoPortMock = { analizarDocumento: jest.fn() };
+
+/** Ninguno de estos tests ejercita `findMiembrosDelTablero` — solo hace falta para satisfacer el DI. */
+const userModelMock = { find: jest.fn() };
 
 /** Documento mínimo que necesita el fake de Model — deliberadamente laxo (índice `unknown`)
  * para poder representar tanto tareas como clientes sin duplicar el helper. */
@@ -87,6 +98,16 @@ function createFakeTareaModel() {
     };
   }
 
+  function deleteOne(filter: Record<string, unknown>) {
+    return {
+      exec: (): Promise<void> => {
+        const index = docs.findIndex((d) => matchesFilter(d, filter));
+        if (index >= 0) docs.splice(index, 1);
+        return Promise.resolve();
+      },
+    };
+  }
+
   const model = {
     create: jest.fn(create),
     exists: jest.fn(exists),
@@ -94,6 +115,7 @@ function createFakeTareaModel() {
     find: jest.fn(find),
     findOne: jest.fn(findOne),
     updateOne: jest.fn(updateOne),
+    deleteOne: jest.fn(deleteOne),
   };
 
   return { model, docs };
@@ -138,6 +160,9 @@ describe('IvaTareasService', () => {
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
         ],
       }).compile();
 
@@ -232,6 +257,9 @@ describe('IvaTareasService', () => {
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
         ],
       }).compile();
 
@@ -275,6 +303,289 @@ describe('IvaTareasService', () => {
 
       // quedaba sola en "pendiente" tras sacar tareaMovida (posición 0) -> pasa a 0
       expect(otraPendiente.posicion).toBe(0);
+    });
+  });
+
+  describe('removeTarea', () => {
+    let service: IvaTareasService;
+    let docs: FakeDoc[];
+    const estudioId = new Types.ObjectId();
+
+    const clienteModelMock = { find: jest.fn() };
+
+    let tareaBorrada: FakeDoc;
+    let otraPendiente: FakeDoc;
+
+    beforeEach(async () => {
+      jest.clearAllMocks();
+
+      const fake = createFakeTareaModel();
+      docs = fake.docs;
+
+      tareaBorrada = {
+        _id: new Types.ObjectId(),
+        estudioId,
+        clienteId: new Types.ObjectId(),
+        jurisdiccion: Jurisdiccion.ARCA,
+        periodo: '2026-08',
+        estado: EstadoTarea.PENDIENTE,
+        posicion: 0,
+        checklist: [],
+      };
+      otraPendiente = {
+        _id: new Types.ObjectId(),
+        estudioId,
+        clienteId: new Types.ObjectId(),
+        jurisdiccion: Jurisdiccion.ARBA,
+        periodo: '2026-08',
+        estado: EstadoTarea.PENDIENTE,
+        posicion: 1,
+        checklist: [],
+      };
+      docs.push(tareaBorrada, otraPendiente);
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(IvaTareasService);
+    });
+
+    it('borra la tarea y renumera las que quedan en la misma columna', async () => {
+      await service.removeTarea(tareaBorrada._id.toString(), estudioId);
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0]._id.toString()).toBe(otraPendiente._id.toString());
+      expect(otraPendiente.posicion).toBe(0);
+    });
+
+    it('tira NotFoundException si la tarea no existe (o es de otro estudio)', async () => {
+      await expect(service.removeTarea(new Types.ObjectId().toString(), estudioId)).rejects.toThrow(
+        'Tarea de presentación no encontrada',
+      );
+    });
+  });
+
+  describe('findMiembrosDelTablero', () => {
+    let service: IvaTareasService;
+    const estudioId = new Types.ObjectId();
+
+    const rolAdmin = { nombre: 'admin', permisos: Object.values(PERMISSIONS) };
+    const rolContador = { nombre: 'contador', permisos: [PERMISSIONS.IVA_TAREAS_READ] };
+    const rolSinAcceso = { nombre: 'solo-facturacion', permisos: [PERMISSIONS.FACTURACION_READ] };
+
+    const admin: FakeDoc = {
+      _id: new Types.ObjectId(),
+      nombre: 'Nadia Admin',
+      estudioId,
+      activo: true,
+      roleIds: [rolAdmin],
+    };
+    const contadora: FakeDoc = {
+      _id: new Types.ObjectId(),
+      nombre: 'Contadora Test',
+      estudioId,
+      activo: true,
+      roleIds: [rolContador],
+      avatarContentType: 'image/png',
+      avatarBase64: 'abc123',
+    };
+    const sinAcceso: FakeDoc = {
+      _id: new Types.ObjectId(),
+      nombre: 'Sin Acceso',
+      estudioId,
+      activo: true,
+      roleIds: [rolSinAcceso],
+    };
+
+    const userModel = {
+      find: jest.fn().mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([admin, contadora, sinAcceso]),
+        }),
+      }),
+    };
+
+    beforeEach(async () => {
+      jest.clearAllMocks();
+      userModel.find.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([admin, contadora, sinAcceso]),
+        }),
+      });
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: {} },
+          { provide: getModelToken(Cliente.name), useValue: {} },
+          { provide: getModelToken(User.name), useValue: userModel },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(IvaTareasService);
+    });
+
+    it('incluye admin y contador (tienen iva-tareas.read) y excluye a quien no lo tiene', async () => {
+      const miembros = await service.findMiembrosDelTablero(estudioId);
+      const nombres = miembros.map((m) => m.nombre).sort();
+      expect(nombres).toEqual(['Contadora Test', 'Nadia Admin'].sort());
+    });
+
+    it('arma el avatarDataUrl cuando el usuario tiene foto cargada, y null si no', async () => {
+      const miembros = await service.findMiembrosDelTablero(estudioId);
+      expect(miembros.find((m) => m.nombre === 'Contadora Test')?.avatarDataUrl).toBe(
+        'data:image/png;base64,abc123',
+      );
+      expect(miembros.find((m) => m.nombre === 'Nadia Admin')?.avatarDataUrl).toBeNull();
+    });
+  });
+
+  describe('importarTareasDocumento', () => {
+    let service: IvaTareasService;
+    let docs: FakeDoc[];
+    const estudioId = new Types.ObjectId();
+    const clienteId = new Types.ObjectId();
+
+    const clienteModelMock = { exists: jest.fn() };
+
+    beforeEach(async () => {
+      jest.clearAllMocks();
+      clienteModelMock.exists.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: clienteId }),
+      });
+
+      const fake = createFakeTareaModel();
+      docs = fake.docs;
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(IvaTareasService);
+    });
+
+    it('crea una tarea por cada tarea del lote, en Pendiente, sin jurisdicción, para el cliente elegido', async () => {
+      const resultado = await service.importarTareasDocumento(
+        {
+          clienteId: clienteId.toString(),
+          tareas: [
+            { titulo: 'Armar el balance', descripcion: 'Detalle', checklist: ['Paso 1', 'Paso 2'] },
+            { titulo: 'Enviar el informe' },
+          ],
+        },
+        estudioId,
+      );
+
+      expect(resultado).toEqual({ creadas: 2 });
+      expect(docs).toHaveLength(2);
+      expect(docs[0]).toMatchObject({
+        clienteId,
+        titulo: 'Armar el balance',
+        descripcion: 'Detalle',
+        estado: EstadoTarea.PENDIENTE,
+        posicion: 0,
+        checklist: [
+          { texto: 'Paso 1', completado: false },
+          { texto: 'Paso 2', completado: false },
+        ],
+      });
+      expect(docs[0].jurisdiccion).toBeUndefined();
+      expect(docs[1]).toMatchObject({ titulo: 'Enviar el informe', posicion: 1, checklist: [] });
+    });
+
+    it('tira NotFoundException si el cliente no existe (o es de otro estudio)', async () => {
+      clienteModelMock.exists.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
+      await expect(
+        service.importarTareasDocumento(
+          { clienteId: new Types.ObjectId().toString(), tareas: [{ titulo: 'x' }] },
+          estudioId,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('analizarDocumento', () => {
+    let service: IvaTareasService;
+    const documentoTextoExtractorServiceMock = { extraer: jest.fn() };
+
+    beforeEach(async () => {
+      jest.clearAllMocks();
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: {} },
+          { provide: getModelToken(Cliente.name), useValue: {} },
+          { provide: getModelToken(User.name), useValue: {} },
+          { provide: DocumentoTextoExtractorService, useValue: documentoTextoExtractorServiceMock },
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(IvaTareasService);
+    });
+
+    it('devuelve las tareas propuestas por la IA cuando el documento es legible', async () => {
+      documentoTextoExtractorServiceMock.extraer.mockResolvedValue({
+        texto: 'texto del brief',
+        legible: true,
+      });
+      aiTareasDocumentoPortMock.analizarDocumento.mockResolvedValue({
+        exitoso: true,
+        tareas: [{ titulo: 'Armar el balance', descripcion: 'Detalle', checklist: [] }],
+      });
+
+      const resultado = await service.analizarDocumento({
+        nombreArchivo: 'brief.pdf',
+        contenidoBase64: 'YQ==',
+      });
+
+      expect(resultado).toEqual({
+        nombreArchivo: 'brief.pdf',
+        tareas: [{ titulo: 'Armar el balance', descripcion: 'Detalle', checklist: [] }],
+      });
+    });
+
+    it('tira BadRequestException si el documento no es legible', async () => {
+      documentoTextoExtractorServiceMock.extraer.mockResolvedValue({ texto: '', legible: false });
+
+      await expect(
+        service.analizarDocumento({ nombreArchivo: 'vacio.pdf', contenidoBase64: 'YQ==' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('tira BadRequestException si la IA no pudo analizar el documento', async () => {
+      documentoTextoExtractorServiceMock.extraer.mockResolvedValue({
+        texto: 'texto',
+        legible: true,
+      });
+      aiTareasDocumentoPortMock.analizarDocumento.mockResolvedValue({
+        exitoso: false,
+        tareas: [],
+        mensaje: 'Falló',
+      });
+
+      await expect(
+        service.analizarDocumento({ nombreArchivo: 'brief.pdf', contenidoBase64: 'YQ==' }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -62,7 +62,7 @@ flowchart TB
 | Integración con Catedral | 028–032 | catedral/ | **Scaffold completo** — puerto `CatedralSyncPort` + adapter stub + log de auditoría; adapter real pendiente de FOLGAR-029 (vía de integración a definir con el cliente) |
 | Motor de Notificaciones / Vencimientos | 033–039 | notificaciones/ | **Completo** — CRUD de vencimientos y reglas, motor `evaluarReglas()` con cron diario y deduplicación por NotificacionEnviada, puerto `MessagingProvider` con adapters stub (email/WhatsApp) |
 | Alerta de Presentaciones | 040–045 | alerta-presentaciones/ | **Scaffold completo** — Riesgo Alto: puerto `ArcaMonitorPort` + adapter stub, deduplicación por `referenciaExterna`, bandeja de alertas. Vía de acceso real a ARCA pendiente de definir con el cliente (FOLGAR-040/041) |
-| Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | **Completo** — generación mensual sin duplicados (regla simplificada por régimen fiscal, documentada en el código), Kanban con reordenamiento de posiciones |
+| Generación de Tareas IVA/ARBA/AGIP | 046–051 | iva-tareas/ | **Completo** — generación mensual sin duplicados (regla simplificada por régimen fiscal, documentada en el código), Kanban con reordenamiento de posiciones. `TareaPresentacion` también modela `etiquetas` (texto+color), `prioridad` (baja/media/alta) y `portadaColor`, todos opcionales y editables por `PATCH /iva-tareas/:id` (con `null` para "quitar"); `DELETE /iva-tareas/:id` borra y renumera la columna de origen. `asignadoA` (un solo usuario) pasó a `asignados: ObjectId[]` (0 a N, como los "miembros" de una tarjeta Trello) — mandar `[]` alcanza para vaciarlo, no hace falta el truco de `null`; `QueryKanbanDto`/`QueryTareaPresentacionDto` renombraron su filtro `asignadoA` a `miembro` (mismo significado: "tareas donde este usuario está entre los asignados"). `GET /iva-tareas/miembros` (nuevo, gateado por `iva-tareas.read` en vez de `users.read`) devuelve los usuarios internos del estudio que pueden ver el tablero — se calcula igual que `AuthService.buildUserContext` (roleIds poblados → `permisos` de cada rol) pero para *otros* usuarios, con `avatarDataUrl` armado igual que `UsersService.toProfileResponse`. `descripcion` (texto libre, hasta 5000 caracteres) también se agregó — un string vacío alcanza para "borrarla", sin el truco de `null`. Todo esto se agregó para que el menú y la ficha de la tarjeta del Frontend (paridad Trello) tengan soporte real en vez de acciones deshabilitadas o degradadas por permisos. **"Importar tareas desde documento"** (reemplaza al botón "Generar tareas del mes" del Frontend): `POST /iva-tareas/importar-documento/analizar` (`{ nombreArchivo, contenidoBase64 }`, no persiste nada) extrae el texto del documento (`DocumentoTextoExtractorService`, determinístico — PDF vía `pdf-parse`, DOCX vía `mammoth`, TXT/MD/JSON/CSV como texto plano) y se lo pasa al puerto `AiTareasDocumentoPort` (adapters stub/Anthropic/OpenAI, switch por la misma `AI_PROVIDER` que usa `extractos-ia` — `thinking: 'disabled'` en el adapter de Anthropic para que responda rápido, mismo criterio que `AnthropicExtractionAdapter`) para que proponga una lista de tareas (`titulo`, `descripcion`, `checklist: string[]`, sin horas). `POST /iva-tareas/importar-documento/confirmar` (`{ clienteId, tareas: [...] }`) crea una `TareaPresentacion` por tarea, todas en `estado: 'pendiente'` para ese cliente y `periodo` del mes en curso. Esto agregó `titulo?: string` (encabezado de la tarjeta cuando no es una presentación puntual) y volvió `jurisdiccion` opcional en el schema de `TareaPresentacion` — las tareas importadas por documento no tienen jurisdicción |
 | Factura Electrónica Automática | 052–058 | facturacion-electronica/ | **Scaffold completo** — Riesgo Alto: flujo Prefactura→Aprobada→Emitida/Rechazada real, bloqueo por impagos con excepción auditable (lógica real, no stub), puerto `FacturacionElectronicaPort` + adapter stub para la emisión (sin validez fiscal). Vía real (Catedral vs. ARCA directo) pendiente de FOLGAR-052 |
 | Asistente IA Institucional | 059–061 | asistente-ia/ | **Scaffold completo** — puerto `AiChatPort` + adapter stub, historial de conversación por usuario, feedback útil/no útil. Falta proveedor de IA real y base de conocimiento (FOLGAR-059/060) |
 | Bonos del Ciclo | 062–064 | — (facilitación) | No iniciado |
@@ -74,9 +74,10 @@ flowchart TB
 - Requisitos: Node 20+ (probado con Node 22), Docker.
 - `npm install`
 - `cp .env.example .env` y completar `JWT_SECRET` / `JWT_REFRESH_SECRET` (mínimo 16 caracteres)
-- `docker compose up -d mongo redis` (o `docker compose up -d` para levantar Mongo + Redis + API) —
-  Redis es requerido (`REDIS_URL`, sin default) desde que `extractos-ia` pasó a procesamiento
-  asíncrono vía BullMQ
+- `docker compose up -d mongo` (o `docker compose up -d` para levantar Mongo + Redis + API).
+  En desarrollo `QUEUE_MODE=inline` procesa `extractos-ia` sin Redis para que el backend
+  no dependa de tener `redis-server` instalado; usar `QUEUE_MODE=redis` + `REDIS_URL`
+  cuando se quiera BullMQ/Redis real.
 - `npm run start:dev` — API en `http://localhost:3000/api/v1`, Swagger en `/api/docs` y `/api/docs-json`
 - `npm run seed` — crea el Estudio, los 3 roles de sistema y un usuario admin inicial
   (`admin@folgar.com.ar` / `CambiarEn1erLogin!` por defecto, override con `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`)
@@ -114,15 +115,15 @@ shape `{statusCode,message,error,timestamp,path}` → 401 sin token).
 9. **Riesgo Alto (Alerta-Presentaciones, Facturación-Electrónica)**: se construye el
    scaffold + contratos/puertos + UI; el adapter real contra ARCA/webservice de
    facturación queda stub hasta confirmar la vía de acceso con el cliente.
-10. **BullMQ + Redis para procesamiento asíncrono, WebSocket (socket.io) para push** —
+10. **Cola async para extractos + WebSocket (socket.io) para push** —
     primera cola/worker real del proyecto (hasta ahora solo había cron in-process con
     `@nestjs/schedule`). Se adoptó cuando el procesamiento 100% síncrono de
     `extractos-ia` (única llamada a IA dentro de la misma request HTTP) empezó a
     superar el timeout del Frontend con extractos reales — ver `ExtractosIaProcessor`
     y `RealtimeGateway` (`src/realtime/`, JWT del propio `AuthModule` para autenticar
-    el handshake). Redis es infraestructura nueva: sumado a `docker-compose.yml` y a
-    `REDIS_URL`; no había ninguna decisión de hosting tomada todavía (backlog
-    FOLGAR-073–077), así que no chocó con nada existente.
+    el handshake). En dev la cola puede correr inline (`QUEUE_MODE=inline`, default)
+    para evitar caídas/ruido por Redis local ausente; Redis queda como infraestructura
+    real cuando `QUEUE_MODE=redis` y `REDIS_URL` están configurados.
 
 ## Referencia al backlog
 `docs/backlog/Folgar_Backlog_Tareas.json` (copiado desde el Frontend). 81 tareas,

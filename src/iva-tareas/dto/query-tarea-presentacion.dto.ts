@@ -11,9 +11,10 @@ export class QueryTareaPresentacionDto extends PaginationQueryDto {
   @IsEnum(EstadoTarea)
   estado?: EstadoTarea;
 
+  /** Filtra tareas donde este usuario está entre los asignados. */
   @IsOptional()
   @IsMongoId()
-  asignadoA?: string;
+  miembro?: string;
 
   @IsOptional()
   @IsMongoId()

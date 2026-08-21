@@ -6,7 +6,8 @@ const envSchema = z.object({
   API_PREFIX: z.string().min(1).default('api/v1'),
 
   MONGODB_URI: z.string().min(1, 'MONGODB_URI es requerida'),
-  REDIS_URL: z.string().min(1, 'REDIS_URL es requerida'),
+  REDIS_URL: z.string().optional(),
+  QUEUE_MODE: z.enum(['inline', 'redis']).default('inline'),
 
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('15m'),
@@ -47,6 +48,13 @@ export function validateEnv(config: Record<string, unknown>): EnvConfig {
           code: z.ZodIssueCode.custom,
           path: ['OPENAI_API_KEY'],
           message: 'OPENAI_API_KEY es requerida cuando AI_PROVIDER=openai',
+        });
+      }
+      if (data.QUEUE_MODE === 'redis' && !data.REDIS_URL) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['REDIS_URL'],
+          message: 'REDIS_URL es requerida cuando QUEUE_MODE=redis',
         });
       }
     })

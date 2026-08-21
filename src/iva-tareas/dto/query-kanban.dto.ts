@@ -7,9 +7,10 @@ export class QueryKanbanDto {
   @IsEnum(Jurisdiccion)
   jurisdiccion?: Jurisdiccion;
 
+  /** Filtra tareas donde este usuario está entre los asignados (ej. "Mis tareas" en el Frontend). */
   @IsOptional()
   @IsMongoId()
-  asignadoA?: string;
+  miembro?: string;
 
   /** Formato "YYYY-MM". Si no se pasa, se usa el período actual. */
   @IsOptional()

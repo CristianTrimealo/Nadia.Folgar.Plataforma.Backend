@@ -1,9 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { getQueueToken } from '@nestjs/bullmq';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { ExtractosIaService } from './extractos-ia.service';
+import { EXTRACTOS_PROCESSING_QUEUE, ExtractosIaService } from './extractos-ia.service';
 import {
   EstadoExtracto,
   ExtractoBancario,
@@ -77,7 +76,7 @@ describe('ExtractosIaService', () => {
         { provide: getModelToken(ExtractoBancario.name), useValue: extractoModelMock },
         { provide: PdfTextExtractorService, useValue: pdfTextExtractorMock },
         { provide: CuentasBancariasService, useValue: cuentasBancariasServiceMock },
-        { provide: getQueueToken('extractos-ia'), useValue: queueMock },
+        { provide: EXTRACTOS_PROCESSING_QUEUE, useValue: queueMock },
         ExtractoDeteccionService,
       ],
     }).compile();

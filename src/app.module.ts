@@ -26,6 +26,22 @@ import { IvaTareasModule } from './iva-tareas/iva-tareas.module';
 import { FacturacionElectronicaModule } from './facturacion-electronica/facturacion-electronica.module';
 import { AsistenteIaModule } from './asistente-ia/asistente-ia.module';
 import { HealthModule } from './health/health.module';
+import { useRedisQueues } from './config/queue-mode';
+
+const queueImports = useRedisQueues()
+  ? [
+      BullModule.forRootAsync({
+        inject: [ConfigService],
+        useFactory: (configService: ConfigService) => ({
+          connection: {
+            url: configService.get<string>('REDIS_URL'),
+            maxRetriesPerRequest: null,
+            connectTimeout: 10000,
+          },
+        }),
+      }),
+    ]
+  : [];
 
 @Module({
   imports: [
@@ -50,14 +66,11 @@ import { HealthModule } from './health/health.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
       }),
     }),
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        connection: { url: configService.get<string>('REDIS_URL') },
-      }),
-    }),
+    ...queueImports,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => [

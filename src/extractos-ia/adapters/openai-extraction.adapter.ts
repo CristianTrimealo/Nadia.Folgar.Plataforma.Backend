@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
+import { z } from 'zod/v4';
 import {
   AiExtractionInput,
   AiExtractionPort,
@@ -16,6 +17,7 @@ import {
 } from './shared/extraccion.schema';
 
 const MAX_TOKENS_RESPUESTA = 32000;
+type ExtraccionParseada = z.infer<typeof ExtraccionSchema>;
 
 /**
  * Adapter alternativo de `AiExtractionPort` usando OpenAI (GPT-5.1 por
@@ -69,7 +71,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         };
       }
 
-      const resultado = mensaje.parsed;
+      const resultado = mensaje.parsed as ExtraccionParseada;
       const movimientos: MovimientoExtraido[] = resultado.movimientos.map((m) => ({
         fecha: m.fecha,
         concepto: m.concepto,

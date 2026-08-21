@@ -1,7 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import {
@@ -19,6 +17,12 @@ import { CuentasBancariasService } from '../cuentas-bancarias/cuentas-bancarias.
 import { ExtractoDeteccionService } from './extracto-deteccion.service';
 import { ProcesarExtractoJobData } from './extractos-ia.processor';
 import { construirMovimientosConValidacion, determinarEstadoFinal } from './validacion-saldo';
+
+export interface ExtractosProcessingQueue {
+  add(name: 'procesar', data: ProcesarExtractoJobData): Promise<unknown>;
+}
+
+export const EXTRACTOS_PROCESSING_QUEUE = Symbol('EXTRACTOS_PROCESSING_QUEUE');
 
 /**
  * Resultado del análisis previo a la carga (`POST /extractos-ia/analizar`):
@@ -53,7 +57,8 @@ export class ExtractosIaService {
     private readonly pdfTextExtractor: PdfTextExtractorService,
     private readonly cuentasBancariasService: CuentasBancariasService,
     private readonly extractoDeteccionService: ExtractoDeteccionService,
-    @InjectQueue('extractos-ia') private readonly extractosQueue: Queue<ProcesarExtractoJobData>,
+    @Inject(EXTRACTOS_PROCESSING_QUEUE)
+    private readonly extractosQueue: ExtractosProcessingQueue,
   ) {}
 
   /**

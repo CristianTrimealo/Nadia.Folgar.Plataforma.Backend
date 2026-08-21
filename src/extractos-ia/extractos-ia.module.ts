@@ -1,11 +1,17 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BullModule } from '@nestjs/bullmq';
+import { BullModule, getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { Queue } from 'bullmq';
 import { ExtractoBancario, ExtractoBancarioSchema } from './schemas/extracto-bancario.schema';
-import { ExtractosIaService } from './extractos-ia.service';
+import {
+  EXTRACTOS_PROCESSING_QUEUE,
+  ExtractosIaService,
+  ExtractosProcessingQueue,
+} from './extractos-ia.service';
 import { ExtractosIaController } from './extractos-ia.controller';
-import { ExtractosIaProcessor } from './extractos-ia.processor';
+import { ExtractosIaProcessor, ProcesarExtractoJobData } from './extractos-ia.processor';
 import { AI_EXTRACTION_PORT } from './ports/ai-extraction.port';
 import { AiExtractionStubAdapter } from './adapters/ai-extraction-stub.adapter';
 import { AnthropicExtractionAdapter } from './adapters/anthropic-extraction.adapter';
@@ -16,6 +22,11 @@ import { CuentasBancariasModule } from '../cuentas-bancarias/cuentas-bancarias.m
 import { PlanCuentasModule } from '../plan-cuentas/plan-cuentas.module';
 import { ReglasClasificacionModule } from '../reglas-clasificacion/reglas-clasificacion.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { useRedisQueues } from '../config/queue-mode';
+
+const redisQueuesEnabled = useRedisQueues();
+const queueImports = redisQueuesEnabled ? [BullModule.registerQueue({ name: 'extractos-ia' })] : [];
+const inlineQueueLogger = new Logger('InlineExtractosQueue');
 
 /**
  * Módulo "Procesador de Extractos con IA" (backlog FOLGAR-007 a FOLGAR-012,
@@ -53,7 +64,7 @@ import { RealtimeModule } from '../realtime/realtime.module';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: ExtractoBancario.name, schema: ExtractoBancarioSchema }]),
-    BullModule.registerQueue({ name: 'extractos-ia' }),
+    ...queueImports,
     CuentasBancariasModule,
     PlanCuentasModule,
     ReglasClasificacionModule,
@@ -65,28 +76,41 @@ import { RealtimeModule } from '../realtime/realtime.module';
     ExtractosIaProcessor,
     PdfTextExtractorService,
     ExtractoDeteccionService,
-    AiExtractionStubAdapter,
-    AnthropicExtractionAdapter,
-    OpenAiExtractionAdapter,
     {
       provide: AI_EXTRACTION_PORT,
-      useFactory: (
-        configService: ConfigService,
-        stub: AiExtractionStubAdapter,
-        anthropic: AnthropicExtractionAdapter,
-        openai: OpenAiExtractionAdapter,
-      ) => {
+      useFactory: (configService: ConfigService) => {
         const provider = configService.get<string>('AI_PROVIDER');
-        if (provider === 'anthropic') return anthropic;
-        if (provider === 'openai') return openai;
-        return stub;
+        if (provider === 'anthropic') return new AnthropicExtractionAdapter(configService);
+        if (provider === 'openai') return new OpenAiExtractionAdapter(configService);
+        return new AiExtractionStubAdapter();
       },
-      inject: [
-        ConfigService,
-        AiExtractionStubAdapter,
-        AnthropicExtractionAdapter,
-        OpenAiExtractionAdapter,
-      ],
+      inject: [ConfigService],
+    },
+    {
+      provide: EXTRACTOS_PROCESSING_QUEUE,
+      useFactory: (
+        processor: ExtractosIaProcessor,
+        redisQueue?: Queue<ProcesarExtractoJobData>,
+      ): ExtractosProcessingQueue => {
+        if (redisQueuesEnabled && redisQueue) return redisQueue;
+
+        return {
+          async add(_name: 'procesar', data: ProcesarExtractoJobData): Promise<void> {
+            setTimeout(() => {
+              void processor
+                .process({ data } as never)
+                .catch((error: unknown) =>
+                  inlineQueueLogger.error(
+                    error instanceof Error ? error.stack || error.message : String(error),
+                  ),
+                );
+            }, 0);
+          },
+        };
+      },
+      inject: redisQueuesEnabled
+        ? [ExtractosIaProcessor, getQueueToken('extractos-ia')]
+        : [ExtractosIaProcessor],
     },
   ],
   exports: [ExtractosIaService],

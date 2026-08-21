@@ -18,6 +18,13 @@ export enum EstadoTarea {
   PRESENTADO = 'presentado',
 }
 
+/** Urgencia declarada a mano por el equipo — no se calcula, es una etiqueta más. */
+export enum Prioridad {
+  BAJA = 'baja',
+  MEDIA = 'media',
+  ALTA = 'alta',
+}
+
 /**
  * Ítem del checklist de una presentación (ej. "Conciliar IVA Ventas", "Subir
  * a ARCA", "Avisar al cliente"). No hay catálogo de checklists por
@@ -37,6 +44,23 @@ export class ChecklistItem {
 export const ChecklistItemSchema = SchemaFactory.createForClass(ChecklistItem);
 
 /**
+ * Etiqueta libre tipo Trello (texto + color hex) — sin catálogo fijo por el
+ * mismo motivo que `ChecklistItem`: no hay un set de etiquetas acordado con
+ * Nadia todavía, así que el equipo las crea a mano desde el Frontend.
+ */
+@Schema({ _id: false })
+export class Etiqueta {
+  @Prop({ required: true, trim: true })
+  texto: string;
+
+  /** Hex de 6 dígitos, ej. "#96602f". Validado en el DTO, no acá. */
+  @Prop({ required: true, trim: true })
+  color: string;
+}
+
+export const EtiquetaSchema = SchemaFactory.createForClass(Etiqueta);
+
+/**
  * Tarea de presentación de un cliente ante una jurisdicción para un período
  * (`"YYYY-MM"`), generada automáticamente todos los meses por
  * `IvaTareasService.generarTareasDelMes()` (ver ese servicio para el criterio
@@ -52,8 +76,14 @@ export class TareaPresentacion {
   @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
-  @Prop({ type: String, enum: Jurisdiccion, required: true })
-  jurisdiccion: Jurisdiccion;
+  /**
+   * Opcional: las tareas de "Importar tareas desde documento" (checklist
+   * FOLGAR-051-bis) no corresponden a una presentación puntual ante un
+   * organismo, así que no tienen jurisdicción — ver `titulo` en esta misma
+   * clase, que es lo que identifica a esas tarjetas en su lugar.
+   */
+  @Prop({ type: String, enum: Jurisdiccion, required: false })
+  jurisdiccion?: Jurisdiccion;
 
   /** Período fiscal de la presentación, formato "YYYY-MM" (ej. "2026-07"). */
   @Prop({ required: true, trim: true })
@@ -66,12 +96,39 @@ export class TareaPresentacion {
   @Prop({ default: 0 })
   posicion: number;
 
-  /** Colaboradora asignada a la tarea. Opcional: se puede generar sin asignar y repartir después. */
-  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
-  asignadoA?: Types.ObjectId;
+  /**
+   * Colaboradoras asignadas a la tarea (0 a N, como los "miembros" de una
+   * tarjeta de Trello). Arranca vacío: se puede generar sin asignar y
+   * repartir después.
+   */
+  @Prop({ type: [Types.ObjectId], ref: 'User', default: [] })
+  asignados: Types.ObjectId[];
+
+  /** Texto libre tipo "descripción" de Trello — detalle de la presentación, notas para quien la retome, etc. */
+  @Prop({ required: false, trim: true })
+  descripcion?: string;
 
   @Prop({ type: [ChecklistItemSchema], default: [] })
   checklist: ChecklistItem[];
+
+  @Prop({ type: String, enum: Prioridad, required: false })
+  prioridad?: Prioridad;
+
+  @Prop({ type: [EtiquetaSchema], default: [] })
+  etiquetas: Etiqueta[];
+
+  /** Color de portada de la tarjeta (hex), equivalente simplificado a la "cover" de Trello — sin imagen, por ahora sin storage de objetos confirmado (ver nota en `Documento` de portal-clientes). */
+  @Prop({ required: false, trim: true })
+  portadaColor?: string;
+
+  /**
+   * Título propio de la tarjeta — solo lo traen las tareas importadas desde
+   * documento (ej. "Analizar el concepto de ética y moral"). El resto de las
+   * tareas (generadas por `generarTareasDelMes` o alta manual) no lo tiene:
+   * su encabezado en el Frontend es el nombre del cliente.
+   */
+  @Prop({ required: false, trim: true, maxlength: 300 })
+  titulo?: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;

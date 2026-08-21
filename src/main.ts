@@ -10,6 +10,7 @@ import { AppModule } from './app.module';
 import { parseCorsOrigins } from './config/cors-origins';
 
 async function bootstrap(): Promise<void> {
+  console.log('[bootstrap] Iniciando API Nadia Folgar...');
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     // bodyLimit por encima del default de Fastify (1 MB): portal-clientes
@@ -65,6 +66,12 @@ async function bootstrap(): Promise<void> {
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
+  console.log(`[bootstrap] API escuchando en http://localhost:${port}`);
 }
 
-void bootstrap();
+bootstrap().catch((error) => {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  console.error('[bootstrap] Fallo al iniciar la API:');
+  console.error(message);
+  process.exit(1);
+});
