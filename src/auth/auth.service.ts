@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
@@ -14,6 +14,19 @@ export interface TokenPair {
 
 interface RefreshPayload {
   sub: string;
+}
+
+export type SocialProvider = 'google' | 'linkedin' | 'apple';
+
+interface SocialProfile {
+  email: string;
+  emailVerified: boolean;
+}
+
+interface OAuthProviderConfig {
+  clientId?: string;
+  clientSecret?: string;
+  callbackUrl: string;
 }
 
 @Injectable()
@@ -76,6 +89,75 @@ export class AuthService {
     return this.issueTokens(this.buildUserContext(user));
   }
 
+  buildSocialAuthorizationUrl(provider: SocialProvider, returnTo?: string): string {
+    const state = Buffer.from(
+      JSON.stringify({ returnTo: returnTo || this.frontendCallbackUrl }),
+    ).toString('base64url');
+
+    if (provider === 'google') {
+      const config = this.getOAuthConfig('GOOGLE');
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.callbackUrl,
+        response_type: 'code',
+        scope: 'openid email profile',
+        prompt: 'select_account',
+        state,
+      });
+      return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    }
+
+    if (provider === 'linkedin') {
+      const config = this.getOAuthConfig('LINKEDIN');
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.callbackUrl,
+        response_type: 'code',
+        scope: 'openid profile email',
+        state,
+      });
+      return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
+    }
+
+    const config = this.getOAuthConfig('APPLE');
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      redirect_uri: config.callbackUrl,
+      response_type: 'code',
+      response_mode: 'query',
+      scope: 'name email',
+      state,
+    });
+    return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+  }
+
+  async loginWithSocialCode(provider: SocialProvider, code: string): Promise<TokenPair> {
+    const profile = await this.fetchSocialProfile(provider, code);
+    if (!profile.emailVerified) {
+      throw new UnauthorizedException('El proveedor no confirmó el email de la cuenta');
+    }
+
+    const user = await this.usersService.findByEmail(profile.email);
+    if (!user || !user.activo) {
+      throw new UnauthorizedException('No existe un usuario activo asociado a ese email');
+    }
+
+    return this.login(user);
+  }
+
+  resolveSocialReturnTo(state?: string): string {
+    if (!state) return this.frontendCallbackUrl;
+
+    try {
+      const parsed = JSON.parse(Buffer.from(state, 'base64url').toString('utf8')) as {
+        returnTo?: string;
+      };
+      return parsed.returnTo || this.frontendCallbackUrl;
+    } catch {
+      return this.frontendCallbackUrl;
+    }
+  }
+
   private issueTokens(context: AuthenticatedUser): TokenPair {
     const accessToken = this.jwtService.sign(context as unknown as Record<string, unknown>, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -91,5 +173,148 @@ export class AuthService {
     );
 
     return { accessToken, refreshToken };
+  }
+
+  private get frontendCallbackUrl(): string {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:5173');
+    return `${frontendUrl.replace(/\/$/, '')}/auth/callback`;
+  }
+
+  private getOAuthConfig(provider: 'GOOGLE' | 'LINKEDIN' | 'APPLE'): Required<OAuthProviderConfig> {
+    const clientId = this.configService.get<string>(`${provider}_OAUTH_CLIENT_ID`);
+    const clientSecret =
+      provider === 'APPLE'
+        ? this.getAppleClientSecret()
+        : this.configService.get<string>(`${provider}_OAUTH_CLIENT_SECRET`);
+    const callbackUrl =
+      this.configService.get<string>(`${provider}_OAUTH_CALLBACK_URL`) ||
+      `http://localhost:${this.configService.get<number>('PORT', 3000)}/${this.configService.get<string>('API_PREFIX', 'api/v1')}/auth/${provider.toLowerCase()}/callback`;
+
+    if (!clientId || !clientSecret) {
+      throw new ServiceUnavailableException(
+        `OAuth ${provider.toLowerCase()} no está configurado en el Backend`,
+      );
+    }
+
+    return { clientId, clientSecret, callbackUrl };
+  }
+
+  private getAppleClientSecret(): string | undefined {
+    const configuredSecret = this.configService.get<string>('APPLE_OAUTH_CLIENT_SECRET');
+    if (configuredSecret) return configuredSecret;
+
+    const teamId = this.configService.get<string>('APPLE_OAUTH_TEAM_ID');
+    const keyId = this.configService.get<string>('APPLE_OAUTH_KEY_ID');
+    const privateKey = this.configService
+      .get<string>('APPLE_OAUTH_PRIVATE_KEY')
+      ?.replace(/\\n/g, '\n');
+    const clientId = this.configService.get<string>('APPLE_OAUTH_CLIENT_ID');
+    if (!teamId || !keyId || !privateKey || !clientId) return undefined;
+
+    return this.jwtService.sign(
+      {
+        iss: teamId,
+        aud: 'https://appleid.apple.com',
+        sub: clientId,
+      },
+      {
+        algorithm: 'ES256',
+        privateKey,
+        keyid: keyId,
+        expiresIn: '5m',
+      } as never,
+    );
+  }
+
+  private async fetchSocialProfile(provider: SocialProvider, code: string): Promise<SocialProfile> {
+    if (provider === 'google') return this.fetchGoogleProfile(code);
+    if (provider === 'linkedin') return this.fetchLinkedInProfile(code);
+    return this.fetchAppleProfile(code);
+  }
+
+  private async fetchGoogleProfile(code: string): Promise<SocialProfile> {
+    const config = this.getOAuthConfig('GOOGLE');
+    const token = await this.postToken('https://oauth2.googleapis.com/token', {
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.callbackUrl,
+      grant_type: 'authorization_code',
+    });
+
+    const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
+    const profile = (await response.json()) as { email?: string; email_verified?: boolean };
+    if (!response.ok || !profile.email) {
+      throw new UnauthorizedException('No se pudo obtener el perfil de Google');
+    }
+    return { email: profile.email, emailVerified: profile.email_verified === true };
+  }
+
+  private async fetchLinkedInProfile(code: string): Promise<SocialProfile> {
+    const config = this.getOAuthConfig('LINKEDIN');
+    const token = await this.postToken('https://www.linkedin.com/oauth/v2/accessToken', {
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.callbackUrl,
+      grant_type: 'authorization_code',
+    });
+
+    const response = await fetch('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
+    const profile = (await response.json()) as { email?: string; email_verified?: boolean };
+    if (!response.ok || !profile.email) {
+      throw new UnauthorizedException('No se pudo obtener el perfil de LinkedIn');
+    }
+    return { email: profile.email, emailVerified: profile.email_verified !== false };
+  }
+
+  private async fetchAppleProfile(code: string): Promise<SocialProfile> {
+    const config = this.getOAuthConfig('APPLE');
+    const token = await this.postToken('https://appleid.apple.com/auth/token', {
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.callbackUrl,
+      grant_type: 'authorization_code',
+    });
+
+    const idToken = token.id_token;
+    if (!idToken) {
+      throw new UnauthorizedException('Apple no devolvió identidad de usuario');
+    }
+
+    const payload = JSON.parse(
+      Buffer.from(idToken.split('.')[1], 'base64url').toString('utf8'),
+    ) as {
+      email?: string;
+      email_verified?: boolean | string;
+    };
+    if (!payload.email) {
+      throw new UnauthorizedException('No se pudo obtener el email de Apple');
+    }
+    return {
+      email: payload.email,
+      emailVerified: payload.email_verified === true || payload.email_verified === 'true',
+    };
+  }
+
+  private async postToken(
+    url: string,
+    params: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(params),
+    });
+    const data = (await response.json()) as Record<string, string>;
+    if (!response.ok || !data.access_token) {
+      throw new UnauthorizedException('No se pudo completar el intercambio OAuth');
+    }
+    return data;
   }
 }

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Redirect,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -28,6 +39,42 @@ export class AuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Get('google')
+  @Redirect('', 302)
+  google(@Query('returnTo') returnTo?: string) {
+    return this.socialStart('google', returnTo);
+  }
+
+  @Get('linkedin')
+  @Redirect('', 302)
+  linkedin(@Query('returnTo') returnTo?: string) {
+    return this.socialStart('linkedin', returnTo);
+  }
+
+  @Get('apple')
+  @Redirect('', 302)
+  apple(@Query('returnTo') returnTo?: string) {
+    return this.socialStart('apple', returnTo);
+  }
+
+  @Get('google/callback')
+  @Redirect('', 302)
+  async googleCallback(@Query('code') code?: string, @Query('state') state?: string) {
+    return this.socialCallback('google', code, state);
+  }
+
+  @Get('linkedin/callback')
+  @Redirect('', 302)
+  async linkedinCallback(@Query('code') code?: string, @Query('state') state?: string) {
+    return this.socialCallback('linkedin', code, state);
+  }
+
+  @Get('apple/callback')
+  @Redirect('', 302)
+  async appleCallback(@Query('code') code?: string, @Query('state') state?: string) {
+    return this.socialCallback('apple', code, state);
   }
 
   @ApiBearerAuth()
@@ -71,5 +118,46 @@ export class AuthController {
   async updateAvatar(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateAvatarDto) {
     const doc = await this.usersService.updateAvatar(user.userId, dto);
     return this.usersService.toProfileResponse(doc);
+  }
+
+  private socialStart(provider: 'google' | 'linkedin' | 'apple', returnTo?: string) {
+    const callbackUrl = returnTo || this.authService.resolveSocialReturnTo();
+
+    try {
+      return { url: this.authService.buildSocialAuthorizationUrl(provider, callbackUrl) };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'No se pudo iniciar el ingreso con la cuenta seleccionada';
+      const params = new URLSearchParams({ error: message });
+      return { url: `${callbackUrl}#${params.toString()}` };
+    }
+  }
+
+  private async socialCallback(
+    provider: 'google' | 'linkedin' | 'apple',
+    code?: string,
+    state?: string,
+  ) {
+    if (!code) {
+      throw new BadRequestException('El proveedor no devolvió código de autorización');
+    }
+
+    const returnTo = this.authService.resolveSocialReturnTo(state);
+
+    try {
+      const tokens = await this.authService.loginWithSocialCode(provider, code);
+      const params = new URLSearchParams({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+      return { url: `${returnTo}#${params.toString()}` };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'No se pudo completar el ingreso social';
+      const params = new URLSearchParams({ error: message });
+      return { url: `${returnTo}#${params.toString()}` };
+    }
   }
 }

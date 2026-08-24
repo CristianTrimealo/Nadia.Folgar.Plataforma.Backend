@@ -15,6 +15,20 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_CALLBACK_URL: z.string().url().optional(),
+  LINKEDIN_OAUTH_CLIENT_ID: z.string().optional(),
+  LINKEDIN_OAUTH_CLIENT_SECRET: z.string().optional(),
+  LINKEDIN_OAUTH_CALLBACK_URL: z.string().url().optional(),
+  APPLE_OAUTH_CLIENT_ID: z.string().optional(),
+  APPLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  APPLE_OAUTH_TEAM_ID: z.string().optional(),
+  APPLE_OAUTH_KEY_ID: z.string().optional(),
+  APPLE_OAUTH_PRIVATE_KEY: z.string().optional(),
+  APPLE_OAUTH_CALLBACK_URL: z.string().url().optional(),
 
   THROTTLE_TTL: z.coerce.number().int().positive().default(60000),
   THROTTLE_LIMIT: z.coerce.number().int().positive().default(20),

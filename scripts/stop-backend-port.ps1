@@ -15,7 +15,8 @@ foreach ($connection in $connections) {
   $isNode = $process.Name -eq 'node.exe'
   $looksLikeThisBackend =
     $process.CommandLine -like '*Nadia.Folgar.Plataforma.Backend*' -or
-    $process.CommandLine -like '*dist/main*'
+    $process.CommandLine -like '*dist/main*' -or
+    $process.CommandLine -like '*dist\main*'
 
   if ($isNode -and $looksLikeThisBackend) {
     Write-Host "Cerrando backend anterior en puerto $port (PID $processId)..."

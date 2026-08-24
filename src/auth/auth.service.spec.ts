@@ -9,6 +9,17 @@ import { UsersService } from '../users/users.service';
 
 describe('AuthService', () => {
   let service: AuthService;
+  const configValues: Record<string, string | number> = {
+    API_PREFIX: 'api/v1',
+    FRONTEND_URL: 'http://localhost:5173',
+    GOOGLE_OAUTH_CLIENT_ID: 'google-client-id',
+    GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
+    JWT_EXPIRES_IN: '15m',
+    JWT_REFRESH_EXPIRES_IN: '7d',
+    JWT_REFRESH_SECRET: 'test-refresh-secret',
+    JWT_SECRET: 'test-secret',
+    PORT: 3000,
+  };
   const usersServiceMock = {
     findByEmail: jest.fn(),
     findOne: jest.fn(),
@@ -23,7 +34,9 @@ describe('AuthService', () => {
         JwtService,
         {
           provide: ConfigService,
-          useValue: { get: (key: string) => (key === 'JWT_EXPIRES_IN' ? '15m' : 'test-secret') },
+          useValue: {
+            get: (key: string, fallback?: string | number) => configValues[key] ?? fallback,
+          },
         },
       ],
     }).compile();
@@ -67,5 +80,19 @@ describe('AuthService', () => {
     expect(context.permissions.sort()).toEqual(
       ['clientes.read', 'clientes.write', 'users.read'].sort(),
     );
+  });
+
+  it('arma la URL de inicio OAuth de Google con callback y returnTo', () => {
+    const url = new URL(
+      service.buildSocialAuthorizationUrl('google', 'http://localhost:5173/auth/callback'),
+    );
+
+    expect(`${url.origin}${url.pathname}`).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    expect(url.searchParams.get('client_id')).toBe('google-client-id');
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'http://localhost:3000/api/v1/auth/google/callback',
+    );
+    expect(url.searchParams.get('scope')).toBe('openid email profile');
+    expect(url.searchParams.get('state')).toBeTruthy();
   });
 });
