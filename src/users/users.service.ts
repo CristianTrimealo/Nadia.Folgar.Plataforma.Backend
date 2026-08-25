@@ -14,6 +14,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateAvatarDto } from './dto/update-avatar.dto';
 import { UserProfile } from './types/user-profile';
+import { UserSummary } from './types/user-summary';
+import { RoleDocument } from '../roles/schemas/role.schema';
 
 @Injectable()
 export class UsersService {
@@ -43,14 +45,21 @@ export class UsersService {
 
     const passwordHash = await argon2.hash(dto.password);
 
-    return this.userModel.create({
+    const created = await this.userModel.create({
       email: dto.email.toLowerCase().trim(),
       passwordHash,
       nombre: dto.nombre,
       roleIds: dto.roleIds,
       clienteId: dto.clienteId,
+      telefono: dto.telefono,
+      regimenFiscal: dto.regimenFiscal,
       estudioId,
     });
+    // Para que `toSummary` pueda leer los nombres de rol del usuario recién
+    // creado sin un segundo viaje a la base — mismo criterio que `findAll`/
+    // `findOne`, que ya populan `roleIds`.
+    await created.populate('roleIds');
+    return created;
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserDocument> {
@@ -109,6 +118,34 @@ export class UsersService {
     user.avatarBase64 = dto.contenidoBase64;
     await user.save();
     return user;
+  }
+
+  /**
+   * Forma pública de un usuario para `UsersController` (hoy: pantalla
+   * Personal del Frontend) — a propósito nunca devuelve `passwordHash`.
+   * Requiere que `roleIds` venga poblado (`findAll`/`findOne`/`create` ya lo
+   * hacen); si no, cada rol queda con `nombre: ''` en vez de romper.
+   */
+  toSummary(user: UserDocument): UserSummary {
+    const roles = (user.roleIds as unknown as RoleDocument[]).map((role) =>
+      role && typeof role === 'object' && 'nombre' in role
+        ? { _id: role._id.toString(), nombre: role.nombre }
+        : { _id: (role as unknown as Types.ObjectId).toString(), nombre: '' },
+    );
+
+    return {
+      _id: user._id.toString(),
+      email: user.email,
+      nombre: user.nombre,
+      telefono: user.telefono ?? null,
+      regimenFiscal: user.regimenFiscal ?? null,
+      roles,
+      activo: user.activo,
+      avatarDataUrl:
+        user.avatarContentType && user.avatarBase64
+          ? `data:${user.avatarContentType};base64,${user.avatarBase64}`
+          : null,
+    };
   }
 
   toProfileResponse(user: UserDocument): UserProfile {

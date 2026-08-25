@@ -33,7 +33,7 @@ async function bootstrap(): Promise<void> {
 
   app.enableCors({
     origin: parseCorsOrigins(
-      configService.get<string>('CORS_ORIGIN', 'http://localhost:5173'),
+      configService.get<string>('CORS_ORIGIN', 'http://localhost:5173,http://127.0.0.1:5173'),
       configService.get<string>('NODE_ENV', 'development'),
     ),
     // El default de @nestjs/platform-fastify para `methods` es 'GET,HEAD,POST'

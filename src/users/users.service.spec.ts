@@ -40,7 +40,10 @@ describe('UsersService', () => {
 
   it('hashea la contraseña antes de crear el usuario', async () => {
     userModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
-    userModelMock.create.mockResolvedValue({ email: 'nuevo@folgar.com' });
+    userModelMock.create.mockResolvedValue({
+      email: 'nuevo@folgar.com',
+      populate: jest.fn().mockResolvedValue(undefined),
+    });
 
     await service.create(
       { email: 'Nuevo@Folgar.com', password: 'password123', nombre: 'Test', roleIds: [] },
@@ -51,6 +54,30 @@ describe('UsersService', () => {
     expect(createArgs.email).toBe('nuevo@folgar.com');
     expect(createArgs.passwordHash).not.toBe('password123');
     expect(createArgs.passwordHash.length).toBeGreaterThan(20);
+  });
+
+  it('persiste teléfono y régimen fiscal ("contacto" de Personal) al crear', async () => {
+    userModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    userModelMock.create.mockResolvedValue({
+      email: 'nueva@folgar.com',
+      populate: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await service.create(
+      {
+        email: 'nueva@folgar.com',
+        password: 'password123',
+        nombre: 'Nueva Contadora',
+        roleIds: [],
+        telefono: '+54 9 291 555-1234',
+        regimenFiscal: 'monotributo' as any,
+      },
+      new Types.ObjectId(),
+    );
+
+    const createArgs = userModelMock.create.mock.calls[0][0];
+    expect(createArgs.telefono).toBe('+54 9 291 555-1234');
+    expect(createArgs.regimenFiscal).toBe('monotributo');
   });
 
   describe('updateOwnProfile', () => {
@@ -160,6 +187,40 @@ describe('UsersService', () => {
       } as any);
 
       expect(profile.avatarDataUrl).toBeNull();
+    });
+  });
+
+  describe('toSummary', () => {
+    it('nunca incluye passwordHash, y mapea los roles poblados por nombre', () => {
+      const roleId = new Types.ObjectId();
+      const summary = service.toSummary({
+        _id: new Types.ObjectId(),
+        email: 'contadora@folgar.com',
+        nombre: 'Una Contadora',
+        passwordHash: 'hash-secreto-no-debería-salir',
+        telefono: '+54 9 291 555-1234',
+        regimenFiscal: 'monotributo',
+        roleIds: [{ _id: roleId, nombre: 'contador' }],
+        activo: true,
+      } as any);
+
+      expect(summary).not.toHaveProperty('passwordHash');
+      expect(summary.roles).toEqual([{ _id: roleId.toString(), nombre: 'contador' }]);
+      expect(summary.telefono).toBe('+54 9 291 555-1234');
+      expect(summary.regimenFiscal).toBe('monotributo');
+    });
+
+    it('no revienta si roleIds no vino poblado (queda con nombre vacío)', () => {
+      const roleId = new Types.ObjectId();
+      const summary = service.toSummary({
+        _id: new Types.ObjectId(),
+        email: 'sin-poblar@folgar.com',
+        nombre: 'Sin Poblar',
+        roleIds: [roleId],
+        activo: true,
+      } as any);
+
+      expect(summary.roles).toEqual([{ _id: roleId.toString(), nombre: '' }]);
     });
   });
 });

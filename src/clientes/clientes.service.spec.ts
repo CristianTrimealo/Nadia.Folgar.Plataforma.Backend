@@ -63,10 +63,75 @@ describe('ClientesService', () => {
   });
 
   it('findOne lanza NotFoundException si no existe en el estudio', async () => {
-    clienteModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    clienteModelMock.findOne.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(null),
+    });
 
     await expect(service.findOne('507f1f77bcf86cd799439011', estudioId)).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  describe('responsableId (asignación a "Personal")', () => {
+    interface MockCliente {
+      _id: Types.ObjectId;
+      cuit: string;
+      responsableId?: Types.ObjectId;
+      save: jest.Mock;
+    }
+
+    function mockCliente(overrides: Partial<MockCliente> = {}): MockCliente {
+      const cliente: MockCliente = {
+        _id: new Types.ObjectId(),
+        cuit: '20123456789',
+        save: jest.fn().mockResolvedValue(undefined),
+        ...overrides,
+      };
+      clienteModelMock.findOne.mockReturnValue({
+        populate: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(cliente),
+      });
+      return cliente;
+    }
+
+    it('asigna responsableId al crear', async () => {
+      clienteModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      clienteModelMock.create.mockResolvedValue({});
+      const responsableId = new Types.ObjectId().toString();
+
+      await service.create(
+        {
+          nombre: 'Cliente Test',
+          cuit: '20-12345678-9',
+          regimenFiscal: RegimenFiscal.MONOTRIBUTO,
+          responsableId,
+        },
+        estudioId,
+      );
+
+      expect(clienteModelMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({ responsableId }),
+      );
+    });
+
+    it('desasigna el responsable cuando se manda responsableId null', async () => {
+      const responsableId = new Types.ObjectId();
+      const cliente = mockCliente({ responsableId });
+
+      await service.update(cliente._id.toString(), { responsableId: null }, estudioId);
+
+      expect(cliente.responsableId).toBeUndefined();
+      expect(cliente.save).toHaveBeenCalled();
+    });
+
+    it('no toca el responsable si responsableId viene ausente (undefined)', async () => {
+      const responsableId = new Types.ObjectId();
+      const cliente = mockCliente({ responsableId });
+
+      await service.update(cliente._id.toString(), { nombre: 'Nuevo nombre' }, estudioId);
+
+      expect(cliente.responsableId).toBe(responsableId);
+    });
   });
 });

@@ -4,6 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { IvaTareasService } from './iva-tareas.service';
 import { EstadoTarea, Jurisdiccion, TareaPresentacion } from './schemas/tarea-presentacion.schema';
+import { TareaAdjunto } from './schemas/tarea-adjunto.schema';
 import { Cliente, RegimenFiscal } from '../clientes/schemas/cliente.schema';
 import { User } from '../users/schemas/user.schema';
 import { PERMISSIONS } from '../common/constants/permissions';
@@ -26,12 +27,17 @@ interface FakeDoc {
 /**
  * Filtro tipo Mongo simplificado: soporta igualdad exacta (comparando por
  * `String()`, para no distinguir entre `Types.ObjectId` y su versión string)
- * y el operador `$ne`.
+ * y los operadores `$ne`/`$in` (este último lo usa `enriquecerConAdjuntos`
+ * para traer de una sola vez los adjuntos de portada de varias tareas).
  */
 function matchesFilter(doc: FakeDoc, filter: Record<string, unknown>): boolean {
   return Object.entries(filter).every(([key, value]) => {
     if (value && typeof value === 'object' && '$ne' in (value as Record<string, unknown>)) {
       return String(doc[key]) !== String((value as { $ne: unknown }).$ne);
+    }
+    if (value && typeof value === 'object' && '$in' in (value as Record<string, unknown>)) {
+      const opciones = (value as { $in: unknown[] }).$in;
+      return opciones.some((opcion) => String(doc[key]) === String(opcion));
     }
     return String(doc[key]) === String(value);
   });
@@ -51,6 +57,14 @@ function createFakeTareaModel() {
       ...data,
       _id: new Types.ObjectId(),
       save: (): Promise<void> => Promise.resolve(),
+    };
+    // `enriquecerConAdjuntos` llama `.toObject()` sobre cada tarea — un plano sin las
+    // funciones propias del fake alcanza para ese uso.
+    created.toObject = (): Record<string, unknown> => {
+      const plano: Record<string, unknown> = { ...created };
+      delete plano.save;
+      delete plano.toObject;
+      return plano;
     };
     docs.push(created);
     return Promise.resolve(created);
@@ -121,6 +135,83 @@ function createFakeTareaModel() {
   return { model, docs };
 }
 
+/**
+ * Fake de `Model<TareaAdjuntoDocument>`, mismo espíritu que
+ * `createFakeTareaModel` — respaldado por un array en memoria. Se usa en
+ * TODOS los describe de este archivo (aunque la mayoría ni toque adjuntos)
+ * porque `IvaTareasService` ahora siempre lo inyecta.
+ */
+function createFakeAdjuntoModel() {
+  const docs: FakeDoc[] = [];
+
+  function create(data: Record<string, unknown>): Promise<FakeDoc> {
+    const created: FakeDoc = { ...data, _id: new Types.ObjectId() };
+    created.deleteOne = (): Promise<void> => {
+      const index = docs.findIndex((d) => d._id.equals(created._id));
+      if (index >= 0) docs.splice(index, 1);
+      return Promise.resolve();
+    };
+    docs.push(created);
+    return Promise.resolve(created);
+  }
+
+  function find(filter: Record<string, unknown>) {
+    const query = {
+      sort: () => query,
+      populate: () => query,
+      exec: (): Promise<FakeDoc[]> => Promise.resolve(docs.filter((d) => matchesFilter(d, filter))),
+    };
+    return query;
+  }
+
+  function findOne(filter: Record<string, unknown>) {
+    return {
+      exec: (): Promise<FakeDoc | null> =>
+        Promise.resolve(docs.find((d) => matchesFilter(d, filter)) ?? null),
+    };
+  }
+
+  function deleteMany(filter: Record<string, unknown>) {
+    return {
+      exec: (): Promise<void> => {
+        for (let i = docs.length - 1; i >= 0; i -= 1) {
+          if (matchesFilter(docs[i], filter)) docs.splice(i, 1);
+        }
+        return Promise.resolve();
+      },
+    };
+  }
+
+  /** Solo se usa para el conteo de adjuntos por tarea en `enriquecerConAdjuntos` — se replica ese agrupamiento a mano sobre los docs en memoria. */
+  function aggregate() {
+    return {
+      exec: (): Promise<{ _id: Types.ObjectId; count: number }[]> => {
+        const conteos = new Map<string, number>();
+        for (const doc of docs) {
+          const key = String(doc.tareaId);
+          conteos.set(key, (conteos.get(key) ?? 0) + 1);
+        }
+        return Promise.resolve(
+          Array.from(conteos.entries()).map(([id, count]) => ({
+            _id: new Types.ObjectId(id),
+            count,
+          })),
+        );
+      },
+    };
+  }
+
+  const model = {
+    create: jest.fn(create),
+    find: jest.fn(find),
+    findOne: jest.fn(findOne),
+    deleteMany: jest.fn(deleteMany),
+    aggregate: jest.fn(aggregate),
+  };
+
+  return { model, docs };
+}
+
 describe('IvaTareasService', () => {
   describe('generarTareasDelMes — evita duplicados', () => {
     let service: IvaTareasService;
@@ -154,11 +245,13 @@ describe('IvaTareasService', () => {
 
       const fake = createFakeTareaModel();
       docs = fake.docs;
+      const fakeAdjunto = createFakeAdjuntoModel();
 
       const moduleRef = await Test.createTestingModule({
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
           { provide: getModelToken(User.name), useValue: userModelMock },
           DocumentoTextoExtractorService,
@@ -227,6 +320,7 @@ describe('IvaTareasService', () => {
 
       const fake = createFakeTareaModel();
       docs = fake.docs;
+      const fakeAdjunto = createFakeAdjuntoModel();
 
       tareaMovida = {
         _id: new Types.ObjectId(),
@@ -256,6 +350,7 @@ describe('IvaTareasService', () => {
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
           { provide: getModelToken(User.name), useValue: userModelMock },
           DocumentoTextoExtractorService,
@@ -321,6 +416,7 @@ describe('IvaTareasService', () => {
 
       const fake = createFakeTareaModel();
       docs = fake.docs;
+      const fakeAdjunto = createFakeAdjuntoModel();
 
       tareaBorrada = {
         _id: new Types.ObjectId(),
@@ -348,6 +444,7 @@ describe('IvaTareasService', () => {
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
           { provide: getModelToken(User.name), useValue: userModelMock },
           DocumentoTextoExtractorService,
@@ -425,6 +522,7 @@ describe('IvaTareasService', () => {
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: {} },
+          { provide: getModelToken(TareaAdjunto.name), useValue: {} },
           { provide: getModelToken(Cliente.name), useValue: {} },
           { provide: getModelToken(User.name), useValue: userModel },
           DocumentoTextoExtractorService,
@@ -466,11 +564,13 @@ describe('IvaTareasService', () => {
 
       const fake = createFakeTareaModel();
       docs = fake.docs;
+      const fakeAdjunto = createFakeAdjuntoModel();
 
       const moduleRef = await Test.createTestingModule({
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
           { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
           { provide: getModelToken(User.name), useValue: userModelMock },
           DocumentoTextoExtractorService,
@@ -522,6 +622,199 @@ describe('IvaTareasService', () => {
     });
   });
 
+  describe('adjuntos', () => {
+    let service: IvaTareasService;
+    let docs: FakeDoc[];
+    let adjuntoDocs: FakeDoc[];
+    const estudioId = new Types.ObjectId();
+
+    const clienteModelMock = { find: jest.fn() };
+
+    let tarea: FakeDoc;
+
+    beforeEach(async () => {
+      jest.clearAllMocks();
+
+      const fake = createFakeTareaModel();
+      docs = fake.docs;
+      const fakeAdjunto = createFakeAdjuntoModel();
+      adjuntoDocs = fakeAdjunto.docs;
+
+      tarea = {
+        _id: new Types.ObjectId(),
+        estudioId,
+        clienteId: new Types.ObjectId(),
+        jurisdiccion: Jurisdiccion.ARCA,
+        periodo: '2026-08',
+        estado: EstadoTarea.PENDIENTE,
+        posicion: 0,
+        checklist: [],
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+      // `findKanban` (vía `enriquecerConAdjuntos`) llama `.toObject()` — ver la misma nota en `createFakeTareaModel`.
+      tarea.toObject = (): Record<string, unknown> => {
+        const plano: Record<string, unknown> = { ...tarea };
+        delete plano.save;
+        delete plano.toObject;
+        return plano;
+      };
+      docs.push(tarea);
+
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
+          { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+
+      service = moduleRef.get(IvaTareasService);
+    });
+
+    it('addAdjunto sube el archivo y, si es imagen, lo pone como portada automáticamente', async () => {
+      const usuarioId = new Types.ObjectId();
+
+      const adjunto = await service.addAdjunto(
+        tarea._id.toString(),
+        {
+          nombre: 'captura.png',
+          contentType: 'image/png',
+          contenidoBase64: 'aGVsbG8=',
+          tamanioBytes: 5,
+        },
+        estudioId,
+        usuarioId,
+      );
+
+      expect(adjunto.nombre).toBe('captura.png');
+      expect(String(adjunto.subidoPor)).toBe(usuarioId.toString());
+      expect(String(tarea.portadaAdjuntoId)).toBe(adjunto._id.toString());
+    });
+
+    it('addAdjunto NO toca la portada si el archivo no es una imagen', async () => {
+      await service.addAdjunto(
+        tarea._id.toString(),
+        {
+          nombre: 'balance.pdf',
+          contentType: 'application/pdf',
+          contenidoBase64: 'aGVsbG8=',
+          tamanioBytes: 5,
+        },
+        estudioId,
+      );
+
+      expect(tarea.portadaAdjuntoId).toBeUndefined();
+    });
+
+    it('addAdjunto reemplaza tanto una portada de color como una portada de imagen anterior', async () => {
+      tarea.portadaColor = '#96602f';
+
+      const primeraImagen = await service.addAdjunto(
+        tarea._id.toString(),
+        { nombre: 'a.png', contentType: 'image/png', contenidoBase64: 'aGVsbG8=', tamanioBytes: 5 },
+        estudioId,
+      );
+      expect(String(tarea.portadaAdjuntoId)).toBe(primeraImagen._id.toString());
+      expect(tarea.portadaColor).toBeUndefined();
+
+      const segundaImagen = await service.addAdjunto(
+        tarea._id.toString(),
+        { nombre: 'b.png', contentType: 'image/png', contenidoBase64: 'aGVsbG8=', tamanioBytes: 5 },
+        estudioId,
+      );
+      expect(String(tarea.portadaAdjuntoId)).toBe(segundaImagen._id.toString());
+    });
+
+    it('findAdjuntos lista los adjuntos de la tarea, más nuevo primero', async () => {
+      await service.addAdjunto(
+        tarea._id.toString(),
+        {
+          nombre: 'uno.pdf',
+          contentType: 'application/pdf',
+          contenidoBase64: 'aGVsbG8=',
+          tamanioBytes: 5,
+        },
+        estudioId,
+      );
+      await service.addAdjunto(
+        tarea._id.toString(),
+        {
+          nombre: 'dos.pdf',
+          contentType: 'application/pdf',
+          contenidoBase64: 'aGVsbG8=',
+          tamanioBytes: 5,
+        },
+        estudioId,
+      );
+
+      const adjuntos = await service.findAdjuntos(tarea._id.toString(), estudioId);
+      expect(adjuntos).toHaveLength(2);
+    });
+
+    it('removeAdjunto borra el archivo y, si era la portada, limpia esa referencia', async () => {
+      const adjunto = await service.addAdjunto(
+        tarea._id.toString(),
+        { nombre: 'a.png', contentType: 'image/png', contenidoBase64: 'aGVsbG8=', tamanioBytes: 5 },
+        estudioId,
+      );
+      expect(tarea.portadaAdjuntoId).toBeDefined();
+
+      await service.removeAdjunto(tarea._id.toString(), adjunto._id.toString(), estudioId);
+
+      expect(adjuntoDocs).toHaveLength(0);
+      expect(tarea.portadaAdjuntoId).toBeUndefined();
+    });
+
+    it('removeAdjunto tira NotFoundException si el adjunto no existe (o es de otra tarea)', async () => {
+      await expect(
+        service.removeAdjunto(tarea._id.toString(), new Types.ObjectId().toString(), estudioId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('findKanban trae adjuntosCount y portadaAdjunto (solo el contenido de la portada) por tarea', async () => {
+      await service.addAdjunto(
+        tarea._id.toString(),
+        { nombre: 'a.png', contentType: 'image/png', contenidoBase64: 'aGVsbG8=', tamanioBytes: 5 },
+        estudioId,
+      );
+      await service.addAdjunto(
+        tarea._id.toString(),
+        {
+          nombre: 'b.pdf',
+          contentType: 'application/pdf',
+          contenidoBase64: 'aGVsbG8=',
+          tamanioBytes: 5,
+        },
+        estudioId,
+      );
+
+      const [item] = await service.findKanban(estudioId, { periodo: '2026-08' });
+
+      expect(item.adjuntosCount).toBe(2);
+      expect(item.portadaAdjunto).toEqual({
+        contentType: 'image/png',
+        contenidoBase64: 'aGVsbG8=',
+      });
+    });
+
+    it('removeTarea borra en cascada los adjuntos de la tarea eliminada', async () => {
+      await service.addAdjunto(
+        tarea._id.toString(),
+        { nombre: 'a.png', contentType: 'image/png', contenidoBase64: 'aGVsbG8=', tamanioBytes: 5 },
+        estudioId,
+      );
+      expect(adjuntoDocs).toHaveLength(1);
+
+      await service.removeTarea(tarea._id.toString(), estudioId);
+
+      expect(adjuntoDocs).toHaveLength(0);
+    });
+  });
+
   describe('analizarDocumento', () => {
     let service: IvaTareasService;
     const documentoTextoExtractorServiceMock = { extraer: jest.fn() };
@@ -533,6 +826,7 @@ describe('IvaTareasService', () => {
         providers: [
           IvaTareasService,
           { provide: getModelToken(TareaPresentacion.name), useValue: {} },
+          { provide: getModelToken(TareaAdjunto.name), useValue: {} },
           { provide: getModelToken(Cliente.name), useValue: {} },
           { provide: getModelToken(User.name), useValue: {} },
           { provide: DocumentoTextoExtractorService, useValue: documentoTextoExtractorServiceMock },

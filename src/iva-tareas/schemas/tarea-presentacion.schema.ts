@@ -117,9 +117,24 @@ export class TareaPresentacion {
   @Prop({ type: [EtiquetaSchema], default: [] })
   etiquetas: Etiqueta[];
 
-  /** Color de portada de la tarjeta (hex), equivalente simplificado a la "cover" de Trello — sin imagen, por ahora sin storage de objetos confirmado (ver nota en `Documento` de portal-clientes). */
+  /**
+   * Color de portada de la tarjeta (hex), equivalente simplificado a la
+   * "cover" de Trello sin imagen — se usa cuando la tarjeta no tiene ningún
+   * adjunto de imagen (`portadaAdjuntoId`), que tiene prioridad visual sobre
+   * este color cuando está presente (ver `IvaTareasService.addAdjunto`).
+   */
   @Prop({ required: false, trim: true })
   portadaColor?: string;
+
+  /**
+   * Adjunto de imagen que se muestra como portada de la tarjeta (ver
+   * `TareaAdjunto`) — se setea/limpia solo, nunca a mano: `addAdjunto` lo
+   * apunta al último adjunto de imagen subido/pegado, y `removeAdjunto` lo
+   * limpia si se borra justo ese adjunto. No convive con elegir una portada
+   * de imagen distinta a mano todavía (fuera de alcance, ver CLAUDE.md).
+   */
+  @Prop({ type: Types.ObjectId, ref: 'TareaAdjunto', required: false })
+  portadaAdjuntoId?: Types.ObjectId;
 
   /**
    * Título propio de la tarjeta — solo lo traen las tareas importadas desde

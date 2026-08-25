@@ -46,6 +46,9 @@ export class ClientesService {
         .sort(sort)
         .skip((page - 1) * limit)
         .limit(limit)
+        // "Personal" (Frontend) muestra el responsable con nombre/email reales,
+        // no solo el ID — ver `responsableId` en `cliente.schema.ts`.
+        .populate('responsableId', 'nombre email')
         .exec(),
       this.clienteModel.countDocuments(filter).exec(),
     ]);
@@ -54,7 +57,10 @@ export class ClientesService {
   }
 
   async findOne(id: string, estudioId: Types.ObjectId): Promise<ClienteDocument> {
-    const cliente = await this.clienteModel.findOne({ _id: id, estudioId }).exec();
+    const cliente = await this.clienteModel
+      .findOne({ _id: id, estudioId })
+      .populate('responsableId', 'nombre email')
+      .exec();
     if (!cliente) {
       throw new NotFoundException('Cliente no encontrado');
     }
@@ -77,7 +83,13 @@ export class ClientesService {
     estudioId: Types.ObjectId,
   ): Promise<ClienteDocument> {
     const cliente = await this.findOne(id, estudioId);
-    Object.assign(cliente, { ...dto, cuit: dto.cuit ? normalizeCuit(dto.cuit) : cliente.cuit });
+    const { responsableId, ...rest } = dto;
+    Object.assign(cliente, { ...rest, cuit: dto.cuit ? normalizeCuit(dto.cuit) : cliente.cuit });
+    // Se maneja aparte del spread de arriba porque acepta `null` (desasignar)
+    // además de un ObjectId — ver el comentario en `UpdateClienteDto`.
+    if (responsableId !== undefined) {
+      cliente.responsableId = responsableId ? new Types.ObjectId(responsableId) : undefined;
+    }
     await cliente.save();
     return cliente;
   }

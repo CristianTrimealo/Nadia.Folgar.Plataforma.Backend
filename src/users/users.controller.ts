@@ -20,26 +20,28 @@ export class UsersController {
 
   @Get()
   @Permissions(PERMISSIONS.USERS_READ)
-  findAll() {
-    return this.usersService.findAll();
+  async findAll() {
+    const users = await this.usersService.findAll();
+    return users.map((user) => this.usersService.toSummary(user));
   }
 
   @Get(':id')
   @Permissions(PERMISSIONS.USERS_READ)
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  async findOne(@Param('id') id: string) {
+    return this.usersService.toSummary(await this.usersService.findOne(id));
   }
 
   @Post()
   @Permissions(PERMISSIONS.USERS_WRITE)
-  create(@Body() dto: CreateUserDto, @CurrentUser() currentUser: AuthenticatedUser) {
-    return this.usersService.create(dto, new Types.ObjectId(currentUser.estudioId));
+  async create(@Body() dto: CreateUserDto, @CurrentUser() currentUser: AuthenticatedUser) {
+    const created = await this.usersService.create(dto, new Types.ObjectId(currentUser.estudioId));
+    return this.usersService.toSummary(created);
   }
 
   @Patch(':id')
   @Permissions(PERMISSIONS.USERS_WRITE)
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.usersService.toSummary(await this.usersService.update(id, dto));
   }
 
   @Delete(':id')

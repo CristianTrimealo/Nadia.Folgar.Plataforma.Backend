@@ -26,6 +26,7 @@ import { MoverTareaDto } from './dto/mover-tarea.dto';
 import { GenerarTareasDto } from './dto/generar-tareas.dto';
 import { AnalizarDocumentoTareasDto } from './dto/analizar-documento-tareas.dto';
 import { ImportarTareasDocumentoDto } from './dto/importar-tareas-documento.dto';
+import { CreateTareaAdjuntoDto } from './dto/create-tarea-adjunto.dto';
 
 @ApiTags('iva-tareas')
 @ApiBearerAuth()
@@ -124,5 +125,38 @@ export class IvaTareasController {
   @Permissions(PERMISSIONS.IVA_TAREAS_WRITE)
   remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.ivaTareasService.removeTarea(id, new Types.ObjectId(user.estudioId));
+  }
+
+  // ── Adjuntos ────────────────────────────────────────────────────────
+
+  @Get(':id/adjuntos')
+  @Permissions(PERMISSIONS.IVA_TAREAS_READ)
+  findAdjuntos(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.ivaTareasService.findAdjuntos(id, new Types.ObjectId(user.estudioId));
+  }
+
+  @Post(':id/adjuntos')
+  @Permissions(PERMISSIONS.IVA_TAREAS_WRITE)
+  addAdjunto(
+    @Param('id') id: string,
+    @Body() dto: CreateTareaAdjuntoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ivaTareasService.addAdjunto(
+      id,
+      dto,
+      new Types.ObjectId(user.estudioId),
+      new Types.ObjectId(user.userId),
+    );
+  }
+
+  @Delete(':id/adjuntos/:adjuntoId')
+  @Permissions(PERMISSIONS.IVA_TAREAS_WRITE)
+  removeAdjunto(
+    @Param('id') id: string,
+    @Param('adjuntoId') adjuntoId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ivaTareasService.removeAdjunto(id, adjuntoId, new Types.ObjectId(user.estudioId));
   }
 }

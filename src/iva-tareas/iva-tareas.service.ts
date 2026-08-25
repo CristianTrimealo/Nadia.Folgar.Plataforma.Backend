@@ -15,6 +15,7 @@ import {
   TareaPresentacion,
   TareaPresentacionDocument,
 } from './schemas/tarea-presentacion.schema';
+import { TareaAdjunto, TareaAdjuntoDocument } from './schemas/tarea-adjunto.schema';
 import { CreateTareaPresentacionDto } from './dto/create-tarea-presentacion.dto';
 import { UpdateTareaPresentacionDto } from './dto/update-tarea-presentacion.dto';
 import { QueryTareaPresentacionDto } from './dto/query-tarea-presentacion.dto';
@@ -22,6 +23,7 @@ import { QueryKanbanDto } from './dto/query-kanban.dto';
 import { MoverTareaDto } from './dto/mover-tarea.dto';
 import { ChecklistItemDto } from './dto/checklist-item.dto';
 import { EtiquetaDto } from './dto/etiqueta.dto';
+import { CreateTareaAdjuntoDto } from './dto/create-tarea-adjunto.dto';
 import { AnalizarDocumentoTareasDto } from './dto/analizar-documento-tareas.dto';
 import { ImportarTareasDocumentoDto } from './dto/importar-tareas-documento.dto';
 import { DocumentoTextoExtractorService } from './documento-texto-extractor.service';
@@ -51,6 +53,29 @@ export function periodoActual(fecha: Date = new Date()): string {
   return `${fecha.getFullYear()}-${mes}`;
 }
 
+/** Un adjunto es "imagen" si su `contentType` viene con el prefijo MIME estándar `image/*`. */
+function esImagen(contentType: string): boolean {
+  return contentType.startsWith('image/');
+}
+
+/** Subconjunto de `TareaAdjunto` que alcanza para dibujar la portada de una tarjeta — sin `nombre`/`tamanioBytes`, que el Kanban no necesita. */
+export interface PortadaAdjuntoResumen {
+  contentType: string;
+  contenidoBase64: string;
+}
+
+/**
+ * `TareaPresentacion` tal como la devuelven `findKanban`/`findAllTareas`,
+ * enriquecida con lo mínimo que la tarjeta necesita para mostrar el
+ * adjunto de portada y el badge "📎 N" sin traer TODOS los adjuntos de
+ * TODAS las tarjetas en cada listado — eso solo se pide bajo demanda con
+ * `findAdjuntos`, cuando se abre una tarjeta puntual.
+ */
+export type TareaConAdjuntos = Record<string, unknown> & {
+  adjuntosCount: number;
+  portadaAdjunto: PortadaAdjuntoResumen | null;
+};
+
 @Injectable()
 export class IvaTareasService {
   private readonly logger = new Logger(IvaTareasService.name);
@@ -58,6 +83,8 @@ export class IvaTareasService {
   constructor(
     @InjectModel(TareaPresentacion.name)
     private readonly tareaModel: Model<TareaPresentacionDocument>,
+    @InjectModel(TareaAdjunto.name)
+    private readonly adjuntoModel: Model<TareaAdjuntoDocument>,
     @InjectModel(Cliente.name) private readonly clienteModel: Model<ClienteDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly documentoTextoExtractorService: DocumentoTextoExtractorService,
@@ -115,7 +142,7 @@ export class IvaTareasService {
    *     DDJJ mensual; exento no tiene obligación de IIBB), así que quedan
    *     fuera de esas dos jurisdicciones bajo esta regla simple.
    */
-  private determinarJurisdicciones(regimenFiscal: RegimenFiscal): Jurisdiccion[] {
+  private determinarJurisdicciones(regimenFiscal?: RegimenFiscal): Jurisdiccion[] {
     if (regimenFiscal === RegimenFiscal.RESPONSABLE_INSCRIPTO) {
       return [Jurisdiccion.ARCA, Jurisdiccion.ARBA, Jurisdiccion.AGIP];
     }
@@ -296,7 +323,7 @@ export class IvaTareasService {
   async findKanban(
     estudioId: Types.ObjectId,
     filtros: QueryKanbanDto,
-  ): Promise<TareaPresentacionDocument[]> {
+  ): Promise<TareaConAdjuntos[]> {
     const periodo = filtros.periodo ?? periodoActual();
 
     const filter: FilterQuery<TareaPresentacionDocument> = { estudioId, periodo };
@@ -309,12 +336,60 @@ export class IvaTareasService {
       filter.asignados = new Types.ObjectId(filtros.miembro);
     }
 
-    return this.tareaModel
+    const tareas = await this.tareaModel
       .find(filter)
       .sort({ estado: 1, posicion: 1 })
       .populate('clienteId', 'nombre cuit regimenFiscal')
       .populate('asignados', 'nombre email')
       .exec();
+
+    return this.enriquecerConAdjuntos(tareas);
+  }
+
+  /**
+   * Agrega `adjuntosCount` y `portadaAdjunto` (el contenido del adjunto de
+   * portada nada más, no de todos) a cada tarea de un listado — usado tanto
+   * por `findKanban` como por `findAllTareas` para que la tarjeta pueda
+   * mostrar el badge "📎 N" y la imagen de portada sin que el listado
+   * entero cargue el contenido de CADA adjunto de CADA tarjeta.
+   */
+  private async enriquecerConAdjuntos(
+    tareas: TareaPresentacionDocument[],
+  ): Promise<TareaConAdjuntos[]> {
+    if (tareas.length === 0) return [];
+
+    const ids = tareas.map((tarea) => tarea._id);
+    const conteos = await this.adjuntoModel
+      .aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $match: { tareaId: { $in: ids } } },
+        { $group: { _id: '$tareaId', count: { $sum: 1 } } },
+      ])
+      .exec();
+    const conteoPorTarea = new Map(conteos.map((c) => [c._id.toString(), c.count]));
+
+    const idsPortada = tareas
+      .map((tarea) => tarea.portadaAdjuntoId)
+      .filter((id): id is Types.ObjectId => !!id);
+    const portadas = idsPortada.length
+      ? await this.adjuntoModel
+          .find({ _id: { $in: idsPortada } }, 'contentType contenidoBase64')
+          .exec()
+      : [];
+    const portadaPorId = new Map(portadas.map((p) => [p._id.toString(), p]));
+
+    return tareas.map((tarea) => {
+      const portada = tarea.portadaAdjuntoId
+        ? portadaPorId.get(tarea.portadaAdjuntoId.toString())
+        : undefined;
+
+      return {
+        ...(tarea.toObject() as unknown as Record<string, unknown>),
+        adjuntosCount: conteoPorTarea.get(tarea._id.toString()) ?? 0,
+        portadaAdjunto: portada
+          ? { contentType: portada.contentType, contenidoBase64: portada.contenidoBase64 }
+          : null,
+      };
+    });
   }
 
   /**
@@ -392,7 +467,7 @@ export class IvaTareasService {
   async findAllTareas(
     query: QueryTareaPresentacionDto,
     estudioId: Types.ObjectId,
-  ): Promise<PaginatedResult<TareaPresentacionDocument>> {
+  ): Promise<PaginatedResult<TareaConAdjuntos>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
 
@@ -430,7 +505,7 @@ export class IvaTareasService {
       this.tareaModel.countDocuments(filter).exec(),
     ]);
 
-    return { data, total, page, limit };
+    return { data: await this.enriquecerConAdjuntos(data), total, page, limit };
   }
 
   async findOneTarea(id: string, estudioId: Types.ObjectId): Promise<TareaPresentacionDocument> {
@@ -535,6 +610,9 @@ export class IvaTareasService {
     const tarea = await this.findOneTarea(id, estudioId);
 
     await this.tareaModel.deleteOne({ _id: tarea._id }).exec();
+    // Sin esto quedarían adjuntos huérfanos en Mongo (la tarea que los
+    // referenciaba ya no existe, y nada más los va a buscar ni a limpiar).
+    await this.adjuntoModel.deleteMany({ tareaId: tarea._id, estudioId }).exec();
 
     const restantes = await this.tareaModel
       .find({ estudioId, estado: tarea.estado })
@@ -548,5 +626,77 @@ export class IvaTareasService {
           : this.tareaModel.updateOne({ _id: t._id }, { posicion: index }).exec(),
       ),
     );
+  }
+
+  // ── Adjuntos ────────────────────────────────────────────────────────
+
+  /** Listado completo (con contenido) de los adjuntos de una tarjeta — se pide bajo demanda al abrirla, nunca en el listado del Kanban. */
+  async findAdjuntos(tareaId: string, estudioId: Types.ObjectId): Promise<TareaAdjuntoDocument[]> {
+    await this.findOneTarea(tareaId, estudioId); // valida que la tarea exista y sea de este estudio
+
+    return this.adjuntoModel
+      .find({ tareaId: new Types.ObjectId(tareaId), estudioId })
+      .sort({ createdAt: -1 })
+      .populate('subidoPor', 'nombre')
+      .exec();
+  }
+
+  /**
+   * Sube un adjunto (drag&drop, selector de archivo, pegado desde
+   * portapapeles — todo llega acá igual, ya convertido a base64 por el
+   * Frontend). Si es una imagen, pasa a ser la portada de la tarjeta
+   * automáticamente: no hace falta un paso manual de "usar como portada"
+   * (pedido explícito — "si es imagen debe aparecer en la tarjeta"),
+   * reemplazando tanto una portada de color como una portada de imagen
+   * anterior. Los adjuntos que no son imagen nunca tocan la portada.
+   */
+  async addAdjunto(
+    tareaId: string,
+    dto: CreateTareaAdjuntoDto,
+    estudioId: Types.ObjectId,
+    subidoPor?: Types.ObjectId,
+  ): Promise<TareaAdjuntoDocument> {
+    const tarea = await this.findOneTarea(tareaId, estudioId);
+
+    const adjunto = await this.adjuntoModel.create({
+      tareaId: tarea._id,
+      nombre: dto.nombre,
+      contentType: dto.contentType,
+      contenidoBase64: dto.contenidoBase64,
+      tamanioBytes: dto.tamanioBytes,
+      subidoPor,
+      estudioId,
+    });
+
+    if (esImagen(dto.contentType)) {
+      tarea.portadaAdjuntoId = adjunto._id;
+      tarea.portadaColor = undefined;
+      await tarea.save();
+    }
+
+    return adjunto;
+  }
+
+  /** Borra un adjunto puntual; si era la portada de la tarjeta, limpia esa referencia (la tarjeta vuelve a no tener portada de imagen). */
+  async removeAdjunto(
+    tareaId: string,
+    adjuntoId: string,
+    estudioId: Types.ObjectId,
+  ): Promise<void> {
+    const tarea = await this.findOneTarea(tareaId, estudioId);
+
+    const adjunto = await this.adjuntoModel
+      .findOne({ _id: adjuntoId, tareaId: tarea._id, estudioId })
+      .exec();
+    if (!adjunto) {
+      throw new NotFoundException('Adjunto no encontrado');
+    }
+
+    await adjunto.deleteOne();
+
+    if (tarea.portadaAdjuntoId?.equals(adjunto._id)) {
+      tarea.portadaAdjuntoId = undefined;
+      await tarea.save();
+    }
   }
 }

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cliente, ClienteSchema } from '../clientes/schemas/cliente.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { TareaPresentacion, TareaPresentacionSchema } from './schemas/tarea-presentacion.schema';
+import { TareaAdjunto, TareaAdjuntoSchema } from './schemas/tarea-adjunto.schema';
 import { IvaTareasService } from './iva-tareas.service';
 import { IvaTareasController } from './iva-tareas.controller';
 import { DocumentoTextoExtractorService } from './documento-texto-extractor.service';
@@ -29,6 +30,7 @@ import { OpenAiTareasDocumentoAdapter } from './adapters/openai-tareas-documento
   imports: [
     MongooseModule.forFeature([
       { name: TareaPresentacion.name, schema: TareaPresentacionSchema },
+      { name: TareaAdjunto.name, schema: TareaAdjuntoSchema },
       { name: Cliente.name, schema: ClienteSchema },
       { name: User.name, schema: UserSchema },
     ]),

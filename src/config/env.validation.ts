@@ -14,7 +14,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET debe tener al menos 16 caracteres'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  CORS_ORIGIN: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
 
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),

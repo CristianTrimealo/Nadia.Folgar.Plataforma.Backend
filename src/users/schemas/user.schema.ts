@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
+import { RegimenFiscal } from '../../clientes/schemas/cliente.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -45,6 +46,17 @@ export class User {
 
   @Prop({ trim: true, required: false })
   telefono?: string;
+
+  /**
+   * Solo tiene sentido para "Personal" (equipo interno, ver `features/personal`
+   * del Frontend): buena parte del equipo del Estudio son monotributistas o
+   * responsables inscriptos que facturan como independientes, no empleados en
+   * relación de dependencia — mismo enum que `Cliente.regimenFiscal`, gestionado
+   * por el administrador vía `PATCH /users/:id`, no autogestionable desde
+   * "Mi perfil".
+   */
+  @Prop({ type: String, enum: RegimenFiscal, required: false })
+  regimenFiscal?: RegimenFiscal;
 
   /**
    * Foto de perfil como base64 directo en Mongo — misma decisión temporal de

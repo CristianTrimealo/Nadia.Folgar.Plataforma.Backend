@@ -1,4 +1,12 @@
-import { IsEmail, IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsMongoId,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator';
 import { RegimenFiscal } from '../schemas/cliente.schema';
 
 export class CreateClienteDto {
@@ -11,8 +19,13 @@ export class CreateClienteDto {
   })
   cuit: string;
 
+  @IsOptional()
+  @IsString()
+  contacto?: string;
+
+  @IsOptional()
   @IsEnum(RegimenFiscal)
-  regimenFiscal: RegimenFiscal;
+  regimenFiscal?: RegimenFiscal;
 
   @IsOptional()
   @IsEmail()
@@ -21,4 +34,13 @@ export class CreateClienteDto {
   @IsOptional()
   @IsString()
   telefono?: string;
+
+  @IsOptional()
+  @IsString()
+  responsable?: string;
+
+  /** ID de un usuario de "Personal" (`users/`) — ver `responsableId` en `cliente.schema.ts`. */
+  @IsOptional()
+  @IsMongoId()
+  responsableId?: string;
 }

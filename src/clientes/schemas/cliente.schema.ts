@@ -18,14 +18,30 @@ export class Cliente {
   @Prop({ required: true, unique: true })
   cuit: string;
 
-  @Prop({ type: String, enum: RegimenFiscal, required: true })
-  regimenFiscal: RegimenFiscal;
+  @Prop({ trim: true })
+  contacto?: string;
+
+  @Prop({ type: String, enum: RegimenFiscal })
+  regimenFiscal?: RegimenFiscal;
 
   @Prop({ trim: true, lowercase: true })
   email?: string;
 
   @Prop()
   telefono?: string;
+
+  @Prop({ trim: true })
+  responsable?: string;
+
+  /**
+   * Miembro de "Personal" (equipo interno, `users/`) asignado como
+   * responsable de este cliente — a diferencia de `responsable` (texto
+   * libre, arriba), esto es una referencia real: quien tenga este ID
+   * asignado ve este cliente en su fila de la pantalla Personal del
+   * Frontend, y comparte el tablero de tareas de este cliente con él.
+   */
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  responsableId?: Types.ObjectId;
 
   @Prop({ default: true })
   activo: boolean;
