@@ -10,6 +10,7 @@ import {
   Redirect,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -30,6 +31,12 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) {}
 
+  // Límite propio, más estricto que el global de la API (ver `THROTTLE_LIMIT`
+  // en app.module.ts) — el global se subió a 300/min para que la navegación
+  // normal del Dashboard no dispare "Too Many Requests", así que el login
+  // necesita su propia protección contra fuerza bruta en vez de heredar ese
+  // número.
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   async login(@Body() dto: LoginDto) {
     const user = await this.authService.validateUser(dto.email, dto.password);
