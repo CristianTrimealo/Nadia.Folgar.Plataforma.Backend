@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type MensajeAsistenteDocument = HydratedDocument<MensajeAsistente>;
@@ -11,7 +11,7 @@ export enum RolMensaje {
 
 @Schema(baseSchemaOptions)
 export class MensajeAsistente {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
   @Prop({ type: String, enum: RolMensaje, required: true })
@@ -24,7 +24,7 @@ export class MensajeAsistente {
   @Prop({ type: Boolean, default: null })
   util: boolean | null;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

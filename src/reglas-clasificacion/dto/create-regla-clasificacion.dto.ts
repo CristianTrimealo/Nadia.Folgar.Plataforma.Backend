@@ -4,9 +4,13 @@ import {
   IsIn,
   IsInt,
   IsMongoId,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
+  Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { LadoAsiento } from '../schemas/regla-clasificacion.schema';
@@ -56,4 +60,18 @@ export class CreateReglaClasificacionDto {
   @IsOptional()
   @IsMongoId()
   origenMovimientoId?: string;
+
+  /**
+   * Split porcentual, opcional — `cuentaContableSecundariaId` y
+   * `porcentajeSecundario` van juntos o ninguno (ver docstring del schema).
+   */
+  @ValidateIf((dto) => dto.porcentajeSecundario !== undefined)
+  @IsMongoId()
+  cuentaContableSecundariaId?: string;
+
+  @ValidateIf((dto) => dto.cuentaContableSecundariaId !== undefined)
+  @IsNumber()
+  @Min(0.01)
+  @Max(99.99)
+  porcentajeSecundario?: number;
 }

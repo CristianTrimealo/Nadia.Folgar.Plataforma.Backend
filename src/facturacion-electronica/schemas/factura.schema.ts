@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type FacturaDocument = HydratedDocument<Factura>;
@@ -13,7 +13,7 @@ export enum EstadoFactura {
 
 @Schema(baseSchemaOptions)
 export class Factura {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
@@ -28,7 +28,7 @@ export class Factura {
   @Prop()
   motivoRechazo?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User' })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User' })
   aprobadoPor?: Types.ObjectId;
 
   /**
@@ -62,7 +62,7 @@ export class Factura {
   @Prop({ default: false })
   pagada: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

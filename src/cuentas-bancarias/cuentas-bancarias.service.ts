@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { CuentaBancaria, CuentaBancariaDocument } from './schemas/cuenta-bancaria.schema';
@@ -62,18 +62,12 @@ export class CuentasBancariasService {
     return cuenta;
   }
 
-  /** Valida que `cuentaContableId` exista y pertenezca al mismo cliente. */
-  private async assertCuentaContablePerteneceAlCliente(
+  /** Valida que `cuentaContableId` exista en el plan de cuentas del estudio (ya no está scopeado por cliente — ver `CuentaContable`). */
+  private async assertCuentaContableExiste(
     cuentaContableId: string,
-    clienteId: string,
     estudioId: Types.ObjectId,
   ): Promise<void> {
-    const cuentaContable = await this.planCuentasService.findOne(cuentaContableId, estudioId);
-    if (cuentaContable.clienteId.toString() !== clienteId) {
-      throw new BadRequestException(
-        'La cuenta contable de contrapartida debe pertenecer al mismo cliente',
-      );
-    }
+    await this.planCuentasService.findOne(cuentaContableId, estudioId);
   }
 
   async create(
@@ -81,11 +75,7 @@ export class CuentasBancariasService {
     estudioId: Types.ObjectId,
   ): Promise<CuentaBancariaDocument> {
     await this.clientesService.findOne(dto.clienteId, estudioId);
-    await this.assertCuentaContablePerteneceAlCliente(
-      dto.cuentaContableId,
-      dto.clienteId,
-      estudioId,
-    );
+    await this.assertCuentaContableExiste(dto.cuentaContableId, estudioId);
 
     return this.cuentaBancariaModel.create({ ...dto, estudioId });
   }
@@ -97,16 +87,11 @@ export class CuentasBancariasService {
   ): Promise<CuentaBancariaDocument> {
     const cuenta = await this.findOne(id, estudioId);
 
-    const nextClienteId = dto.clienteId ?? cuenta.clienteId.toString();
     if (dto.clienteId) {
       await this.clientesService.findOne(dto.clienteId, estudioId);
     }
     if (dto.cuentaContableId) {
-      await this.assertCuentaContablePerteneceAlCliente(
-        dto.cuentaContableId,
-        nextClienteId,
-        estudioId,
-      );
+      await this.assertCuentaContableExiste(dto.cuentaContableId, estudioId);
     }
 
     Object.assign(cuenta, dto);

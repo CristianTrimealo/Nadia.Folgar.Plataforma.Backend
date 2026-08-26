@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 import { PlantillaNotificacion } from '../templates/notificacion.templates';
 
@@ -45,7 +45,7 @@ export class ReglaNotificacion {
   @Prop({ default: true })
   activa: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

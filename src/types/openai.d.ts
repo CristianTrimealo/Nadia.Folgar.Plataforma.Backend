@@ -13,7 +13,18 @@ declare module 'openai' {
             };
           }>;
         }>;
+        create(options: unknown): Promise<{
+          choices: Array<{
+            message?: {
+              content?: string | null;
+            };
+          }>;
+        }>;
       };
+    };
+
+    models: {
+      list(options?: unknown): Promise<unknown>;
     };
   }
 }

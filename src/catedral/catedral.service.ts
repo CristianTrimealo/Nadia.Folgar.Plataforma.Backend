@@ -1,7 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { CATEDRAL_SYNC_PORT, CatedralSyncPort, SyncResult } from './ports/catedral-sync.port';
+import {
+  AsientoContableExportResult,
+  CATEDRAL_SYNC_PORT,
+  CatedralSyncPort,
+  SyncResult,
+} from './ports/catedral-sync.port';
 import {
   CatedralSyncEstado,
   CatedralSyncLog,
@@ -9,6 +14,7 @@ import {
   CatedralSyncOperacion,
 } from './schemas/catedral-sync-log.schema';
 import { QueryCatedralSyncLogDto } from './dto/query-catedral-sync-log.dto';
+import { AsignacionManualDto } from '../asientos-contables/dto/asignacion-manual.dto';
 import { PaginatedResult } from '../common/dto/pagination-query.dto';
 
 /**
@@ -43,6 +49,48 @@ export class CatedralService {
     return this.ejecutarYRegistrar(CatedralSyncOperacion.IMPORTAR_MOVIMIENTOS, estudioId, () =>
       this.catedralSyncPort.importarMovimientos(origen),
     );
+  }
+
+  /**
+   * Arma y exporta el asiento contable de un extracto ya procesado. No usa
+   * el `ejecutarYRegistrar` compartido (que asumen `SyncResult` plano): acá
+   * el resultado trae además el archivo generado o el detalle de
+   * validación, y ambos casos (éxito y "no cuadra"/"sin clasificar") quedan
+   * igual auditados en `CatedralSyncLog`.
+   */
+  async exportarAsientoContable(
+    extractoId: string,
+    estudioId: Types.ObjectId,
+    asignacionesManuales?: AsignacionManualDto[],
+  ): Promise<AsientoContableExportResult> {
+    try {
+      const resultado = await this.catedralSyncPort.exportarAsientoContable({
+        extractoId,
+        estudioId: estudioId.toString(),
+        asignacionesManuales,
+      });
+
+      await this.syncLogModel.create({
+        operacion: CatedralSyncOperacion.EXPORTAR_ASIENTO_CONTABLE,
+        estudioId,
+        estado: resultado.exitoso ? CatedralSyncEstado.EXITO : CatedralSyncEstado.ERROR,
+        detalle: resultado.mensaje,
+        fecha: new Date(),
+      });
+
+      return resultado;
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Falló la exportación del asiento contable a Catedral: ${mensaje}`);
+      await this.syncLogModel.create({
+        operacion: CatedralSyncOperacion.EXPORTAR_ASIENTO_CONTABLE,
+        estudioId,
+        estado: CatedralSyncEstado.ERROR,
+        detalle: mensaje,
+        fecha: new Date(),
+      });
+      return { exitoso: false, mensaje };
+    }
   }
 
   async findLogs(

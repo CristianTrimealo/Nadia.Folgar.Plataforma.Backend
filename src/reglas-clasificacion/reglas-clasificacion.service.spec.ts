@@ -46,7 +46,7 @@ describe('ReglasClasificacionService', () => {
 
   it('crea una regla manual (sin origenMovimientoId) con procedencia "manual"', async () => {
     clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
-    planCuentasServiceMock.findOne.mockResolvedValue({ clienteId: { toString: () => clienteId } });
+    planCuentasServiceMock.findOne.mockResolvedValue({ _id: cuentaContableId });
     reglaModelMock.create.mockResolvedValue({});
 
     await service.create(
@@ -68,7 +68,7 @@ describe('ReglasClasificacionService', () => {
 
   it('deriva procedencia "aprendida" cuando viene origenMovimientoId', async () => {
     clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
-    planCuentasServiceMock.findOne.mockResolvedValue({ clienteId: { toString: () => clienteId } });
+    planCuentasServiceMock.findOne.mockResolvedValue({ _id: cuentaContableId });
     reglaModelMock.create.mockResolvedValue({});
     const origenMovimientoId = new Types.ObjectId().toString();
 
@@ -89,9 +89,29 @@ describe('ReglasClasificacionService', () => {
     );
   });
 
-  it('rechaza si la cuenta contable pertenece a otro cliente', async () => {
+  it('rechaza si la cuenta contable no existe en el estudio', async () => {
     clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
-    planCuentasServiceMock.findOne.mockResolvedValue({
+    planCuentasServiceMock.findOne.mockRejectedValue(new NotFoundException());
+
+    await expect(
+      service.create(
+        {
+          clienteId,
+          conceptoContable: 'Cobros con Tarjetas',
+          cuentaContableId,
+          ladoAsiento: LadoAsiento.HABER,
+        },
+        estudioId,
+        creadoPor,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('rechaza si la cuenta bancaria pertenece a otro cliente', async () => {
+    clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
+    planCuentasServiceMock.findOne.mockResolvedValue({ _id: cuentaContableId });
+    const cuentaBancariaId = new Types.ObjectId().toString();
+    cuentasBancariasServiceMock.findOne.mockResolvedValue({
       clienteId: { toString: () => new Types.ObjectId().toString() },
     });
 
@@ -99,6 +119,7 @@ describe('ReglasClasificacionService', () => {
       service.create(
         {
           clienteId,
+          cuentaBancariaId,
           conceptoContable: 'Cobros con Tarjetas',
           cuentaContableId,
           ladoAsiento: LadoAsiento.HABER,

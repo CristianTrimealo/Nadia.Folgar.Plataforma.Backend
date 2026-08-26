@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { CuentasBancariasService } from './cuentas-bancarias.service';
 import { CuentaBancaria, MonedaCuentaBancaria } from './schemas/cuenta-bancaria.schema';
@@ -36,9 +36,9 @@ describe('CuentasBancariasService', () => {
     service = moduleRef.get(CuentasBancariasService);
   });
 
-  it('crea la cuenta bancaria si la cuenta contable de contrapartida pertenece al mismo cliente', async () => {
+  it('crea la cuenta bancaria si la cuenta contable de contrapartida existe en el plan de cuentas del estudio', async () => {
     clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
-    planCuentasServiceMock.findOne.mockResolvedValue({ clienteId: { toString: () => clienteId } });
+    planCuentasServiceMock.findOne.mockResolvedValue({ _id: cuentaContableId });
     cuentaBancariaModelMock.create.mockResolvedValue({});
 
     await service.create(
@@ -52,23 +52,22 @@ describe('CuentasBancariasService', () => {
       estudioId,
     );
 
+    expect(planCuentasServiceMock.findOne).toHaveBeenCalledWith(cuentaContableId, estudioId);
     expect(cuentaBancariaModelMock.create).toHaveBeenCalledWith(
       expect.objectContaining({ banco: 'Banco Santander', estudioId }),
     );
   });
 
-  it('rechaza si la cuenta contable pertenece a otro cliente', async () => {
+  it('rechaza si la cuenta contable no existe en el estudio', async () => {
     clientesServiceMock.findOne.mockResolvedValue({ _id: clienteId });
-    planCuentasServiceMock.findOne.mockResolvedValue({
-      clienteId: { toString: () => new Types.ObjectId().toString() },
-    });
+    planCuentasServiceMock.findOne.mockRejectedValue(new NotFoundException());
 
     await expect(
       service.create(
         { clienteId, banco: 'Banco Santander', alias: 'Cuenta Corriente', cuentaContableId },
         estudioId,
       ),
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('findOne lanza NotFoundException si no existe en el estudio', async () => {

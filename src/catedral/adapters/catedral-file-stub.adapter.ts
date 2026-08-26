@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CatedralSyncPort, SyncResult } from '../ports/catedral-sync.port';
+import {
+  AsientoContableExportInput,
+  AsientoContableExportResult,
+  CatedralSyncPort,
+  SyncResult,
+} from '../ports/catedral-sync.port';
 
 /**
  * ============================================================================
@@ -48,6 +53,17 @@ export class CatedralFileStubAdapter implements CatedralSyncPort {
       exitoso: true,
       mensaje:
         'Simulado: importación de movimientos no implementada aún (pendiente de definir vía de integración - FOLGAR-029)',
+    });
+  }
+
+  exportarAsientoContable(input: AsientoContableExportInput): Promise<AsientoContableExportResult> {
+    this.logger.warn(
+      `[STUB] exportarAsientoContable() invocado para extracto=${input.extractoId} — usar CatedralFileAdapter para la exportación real`,
+    );
+
+    return Promise.resolve({
+      exitoso: true,
+      mensaje: 'Simulado: exportación de asiento contable no implementada en este adapter (usar CatedralFileAdapter)',
     });
   }
 }

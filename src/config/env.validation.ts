@@ -43,6 +43,17 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-5.1'),
+
+  /**
+   * Clave simétrica (32 bytes en base64) para `SecretCipherService` — cifra
+   * las API keys de IA que el estudio conecta en Configuración →
+   * Integraciones (`IntegracionIa.apiKeyCifrada`). Generar con
+   * `openssl rand -base64 32` o `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+   */
+  SECRETS_ENCRYPTION_KEY: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, {
+    message:
+      'SECRETS_ENCRYPTION_KEY debe ser 32 bytes en base64 (ej. salida de `openssl rand -base64 32`)',
+  }),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

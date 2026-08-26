@@ -2,7 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import { z } from 'zod/v4';
 import {
+  AiCredenciales,
   AiExtractionInput,
   AiExtractionPort,
   ExtraccionResultado,
@@ -17,6 +19,7 @@ import {
 
 const MODELO_ANTHROPIC = 'claude-sonnet-5';
 const MAX_TOKENS_RESPUESTA = 48000;
+type ExtraccionParseada = z.infer<typeof ExtraccionSchema>;
 
 /**
  * Adapter real de `AiExtractionPort` usando Claude Sonnet 5 (Anthropic) con
@@ -42,7 +45,11 @@ const MAX_TOKENS_RESPUESTA = 48000;
  * en extractos con muchos movimientos — `stream.finalMessage()` igual expone
  * `parsed_output` ya validado contra el schema de Zod.
  *
- * Seleccionado vía `AI_PROVIDER=anthropic` en `extractos-ia.module.ts`.
+ * Seleccionado dinámicamente por `ExtractosIaProcessor` vía
+ * `AiProviderResolverService` (Configuración → Integraciones) — si la
+ * resolución trae una `apiKey` propia (key conectada por el estudio), se usa
+ * esa para esta llamada puntual; si no, se cae a la del constructor
+ * (`ANTHROPIC_API_KEY` de entorno, comportamiento previo a Configuración).
  */
 @Injectable()
 export class AnthropicExtractionAdapter implements AiExtractionPort {
@@ -53,15 +60,27 @@ export class AnthropicExtractionAdapter implements AiExtractionPort {
     this.client = new Anthropic({ apiKey: configService.get<string>('ANTHROPIC_API_KEY') });
   }
 
-  async extraerMovimientos(input: AiExtractionInput): Promise<ExtraccionResultado> {
+  async extraerMovimientos(
+    input: AiExtractionInput,
+    credenciales?: AiCredenciales,
+  ): Promise<ExtraccionResultado> {
+    const client = credenciales?.apiKey
+      ? new Anthropic({ apiKey: credenciales.apiKey })
+      : this.client;
+    const modelo = credenciales?.modelo ?? MODELO_ANTHROPIC;
+
     try {
-      const stream = this.client.messages.stream({
-        model: MODELO_ANTHROPIC,
+      const stream = client.messages.stream({
+        model: modelo,
         max_tokens: MAX_TOKENS_RESPUESTA,
         system: PROMPT_SISTEMA,
         messages: [{ role: 'user', content: construirMensajeUsuario(input) }],
         thinking: { type: 'disabled' },
-        output_config: { format: zodOutputFormat(ExtraccionSchema) },
+        // `as any`: bajo ts-jest (chequeo de tipos por archivo aislado, a diferencia de
+        // `nest build`) esta llamada dispara un TS2589 "type instantiation excessively
+        // deep" al comparar el ZodObject de `ExtraccionSchema` contra el genérico interno
+        // del helper — inocuo en runtime (la validación real la hace Zod, no TS).
+        output_config: { format: zodOutputFormat(ExtraccionSchema as any) },
       });
 
       const respuesta = await stream.finalMessage();
@@ -84,7 +103,7 @@ export class AnthropicExtractionAdapter implements AiExtractionPort {
         };
       }
 
-      const resultado = respuesta.parsed_output;
+      const resultado = respuesta.parsed_output as ExtraccionParseada;
       const movimientos: MovimientoExtraido[] = resultado.movimientos.map((m) => ({
         fecha: m.fecha,
         concepto: m.concepto,

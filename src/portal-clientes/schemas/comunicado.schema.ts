@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type ComunicadoDocument = HydratedDocument<Comunicado>;
@@ -20,10 +20,10 @@ export class Comunicado {
   cuerpo: string;
 
   /** Sin valor => comunicado general, visible para todos los clientes del estudio. */
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: false, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: false, index: true })
   clienteId?: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

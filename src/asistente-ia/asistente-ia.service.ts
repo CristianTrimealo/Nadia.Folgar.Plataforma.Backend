@@ -1,23 +1,58 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AI_CHAT_PORT, AiChatPort } from './ports/ai-chat.port';
+import { AiChatCredenciales, AiChatPort } from './ports/ai-chat.port';
+import { AiChatStubAdapter } from './adapters/ai-chat-stub.adapter';
+import { AnthropicChatAdapter } from './adapters/anthropic-chat.adapter';
+import { OpenAiChatAdapter } from './adapters/openai-chat.adapter';
 import {
   MensajeAsistente,
   MensajeAsistenteDocument,
   RolMensaje,
 } from './schemas/mensaje-asistente.schema';
+import { AiProviderResolverService } from '../configuracion/ai-provider-resolver.service';
+import { ProveedorIA } from '../common/enums/proveedor-ia.enum';
 
 /** Cuántos mensajes previos del usuario se mandan como contexto al puerto de IA. */
 const TAMANIO_HISTORIAL = 10;
 
+/**
+ * PROVEEDOR DE IA: igual que `ExtractosIaProcessor`, ya no depende de un
+ * único `AiChatPort` fijo por variable de entorno — inyecta los tres
+ * adapters directo y resuelve cuál usar vía `AiProviderResolverService`. El
+ * chat no está atado a ningún `Cliente` (es un canal del equipo interno, ver
+ * `MensajeAsistente.schema.ts`), así que resuelve solo con `estudioId`
+ * (nunca hay override de cliente acá — siempre el motor por defecto del
+ * estudio, o el stub si no hay nada conectado).
+ */
 @Injectable()
 export class AsistenteIaService {
   constructor(
     @InjectModel(MensajeAsistente.name)
     private readonly mensajeModel: Model<MensajeAsistenteDocument>,
-    @Inject(AI_CHAT_PORT) private readonly aiChatPort: AiChatPort,
+    private readonly aiProviderResolverService: AiProviderResolverService,
+    private readonly anthropicAdapter: AnthropicChatAdapter,
+    private readonly openAiAdapter: OpenAiChatAdapter,
+    private readonly stubAdapter: AiChatStubAdapter,
   ) {}
+
+  private async resolverAdapter(
+    estudioId: Types.ObjectId,
+  ): Promise<{ port: AiChatPort; credenciales?: AiChatCredenciales }> {
+    const credencial = await this.aiProviderResolverService.resolver(estudioId);
+    if (!credencial) {
+      return { port: this.stubAdapter };
+    }
+
+    const port =
+      credencial.proveedor === ProveedorIA.ANTHROPIC ? this.anthropicAdapter : this.openAiAdapter;
+    return {
+      port,
+      credenciales: credencial.apiKey
+        ? { apiKey: credencial.apiKey, modelo: credencial.modelo }
+        : undefined,
+    };
+  }
 
   async findHistorial(
     userId: Types.ObjectId,
@@ -53,12 +88,14 @@ export class AsistenteIaService {
       estudioId,
     });
 
-    const resultado = await this.aiChatPort.responder(
+    const { port: aiChatPort, credenciales } = await this.resolverAdapter(estudioId);
+    const resultado = await aiChatPort.responder(
       pregunta,
       historialPrevio.reverse().map((m) => ({
         rol: m.rol === RolMensaje.USUARIO ? ('usuario' as const) : ('asistente' as const),
         contenido: m.contenido,
       })),
+      credenciales,
     );
 
     const mensajeAsistente = await this.mensajeModel.create({

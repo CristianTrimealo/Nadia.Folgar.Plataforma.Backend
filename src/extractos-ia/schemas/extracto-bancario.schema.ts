@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type ExtractoBancarioDocument = HydratedDocument<ExtractoBancario>;
@@ -44,6 +44,9 @@ export enum ValidacionSaldo {
  */
 @Schema({ _id: true })
 export class MovimientoExtracto {
+  /** Asignado automáticamente por Mongoose (`_id: true`) — declarado acá para que quede tipado, no lo setea nadie a mano. */
+  _id?: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
   fecha: string;
 
@@ -93,10 +96,10 @@ export const MovimientoExtractoSchema = SchemaFactory.createForClass(MovimientoE
  */
 @Schema(baseSchemaOptions)
 export class ExtractoBancario {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'CuentaBancaria', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'CuentaBancaria', required: true, index: true })
   cuentaBancariaId: Types.ObjectId;
 
   /** Mes que cubre el extracto, formato "YYYY-MM" — agrupa el extracto para el asiento contable mensual. */
@@ -129,7 +132,7 @@ export class ExtractoBancario {
   @Prop({ trim: true })
   mensajeError?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

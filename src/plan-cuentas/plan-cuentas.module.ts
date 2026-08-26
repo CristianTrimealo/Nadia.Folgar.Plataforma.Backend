@@ -3,13 +3,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CuentaContable, CuentaContableSchema } from './schemas/cuenta-contable.schema';
 import { PlanCuentasService } from './plan-cuentas.service';
 import { PlanCuentasController } from './plan-cuentas.controller';
-import { ClientesModule } from '../clientes/clientes.module';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([{ name: CuentaContable.name, schema: CuentaContableSchema }]),
-    ClientesModule,
-  ],
+  imports: [MongooseModule.forFeature([{ name: CuentaContable.name, schema: CuentaContableSchema }])],
   controllers: [PlanCuentasController],
   providers: [PlanCuentasService],
   exports: [PlanCuentasService],

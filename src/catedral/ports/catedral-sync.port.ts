@@ -1,3 +1,5 @@
+import { LadoAsiento } from '../../reglas-clasificacion/schemas/regla-clasificacion.schema';
+
 /**
  * Puerto de sincronización con Catedral (patrón puerto/adapter — ver ADR #5 en
  * CLAUDE.md: "Puerto/adapter para toda integración externa").
@@ -25,6 +27,38 @@ export interface SyncResult {
   datos?: Record<string, unknown>;
 }
 
+/** Input de `exportarAsientoContable`: qué extracto exportar, más las resoluciones manuales de movimientos que ninguna regla clasificó. */
+export interface AsientoContableExportInput {
+  extractoId: string;
+  estudioId: string;
+  asignacionesManuales?: { movimientoId: string; cuentaContableId: string; ladoAsiento: LadoAsiento }[];
+}
+
+export interface ArchivoGenerado {
+  nombreArchivo: string;
+  contentType: string;
+  contenidoBase64: string;
+}
+
+export interface AsientoContableExportResult extends SyncResult {
+  /** Presente solo cuando `exitoso` es `true`. */
+  archivo?: ArchivoGenerado;
+  /**
+   * Presente cuando `exitoso` es `false` por una validación contable (algún
+   * mes no cuadra / quedan movimientos sin clasificar) — un extracto de más
+   * de un mes calendario arma un asiento por mes (ver
+   * `construirAsientosMensuales`), así que la validación es por mes, no
+   * global.
+   */
+  validacion?: {
+    meses: {
+      periodo: string;
+      cuadra: boolean;
+      sinClasificar: { movimientoId: string; concepto: string; monto: number }[];
+    }[];
+  };
+}
+
 export interface CatedralSyncPort {
   /** Exporta el maestro de clientes del estudio hacia Catedral (o lo que la vía elegida requiera). */
   exportarClientes(): Promise<SyncResult>;
@@ -36,6 +70,17 @@ export interface CatedralSyncPort {
    * prejuzga el formato.
    */
   importarMovimientos(origen: unknown): Promise<SyncResult>;
+
+  /**
+   * Arma el asiento contable de un extracto y genera el archivo listo para
+   * importar en Catedral vía "Asientos por lote → Importar desde archivo"
+   * (ver instructivo interno del estudio). Método propio, no una
+   * reinterpretación de `importarMovimientos`: esa operación fue diseñada
+   * para el sentido contrario (traer datos DESDE Catedral, según su propio
+   * contrato `SyncResult`) y no representa bien un archivo binario más
+   * errores de validación contable estructurados.
+   */
+  exportarAsientoContable(input: AsientoContableExportInput): Promise<AsientoContableExportResult>;
 }
 
 /**

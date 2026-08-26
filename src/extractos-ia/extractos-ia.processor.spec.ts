@@ -3,7 +3,9 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import type { Job } from 'bullmq';
 import { ExtractosIaProcessor, ProcesarExtractoJobData } from './extractos-ia.processor';
-import { AI_EXTRACTION_PORT } from './ports/ai-extraction.port';
+import { AiExtractionStubAdapter } from './adapters/ai-extraction-stub.adapter';
+import { AnthropicExtractionAdapter } from './adapters/anthropic-extraction.adapter';
+import { OpenAiExtractionAdapter } from './adapters/openai-extraction.adapter';
 import {
   EstadoExtracto,
   ExtractoBancario,
@@ -13,6 +15,8 @@ import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
 import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
+import { AiProviderResolverService } from '../configuracion/ai-provider-resolver.service';
+import { ProveedorIA } from '../common/enums/proveedor-ia.enum';
 
 describe('ExtractosIaProcessor', () => {
   let processor: ExtractosIaProcessor;
@@ -24,9 +28,13 @@ describe('ExtractosIaProcessor', () => {
 
   const extractoModelMock: any = { findById: jest.fn() };
 
-  // Fake que implementa AiExtractionPort — reemplaza al adapter real (stub,
-  // Anthropic u OpenAI) para probar el worker sin depender de ninguno.
+  // Fake que implementa AiExtractionPort, montado como el adapter stub — el
+  // resolver por default resuelve `null` (sin nada conectado en
+  // Configuración → Integraciones), así que `ExtractosIaProcessor` cae acá.
   const fakePort: any = { extraerMovimientos: jest.fn() };
+  const anthropicAdapterMock: any = { extraerMovimientos: jest.fn() };
+  const openAiAdapterMock: any = { extraerMovimientos: jest.fn() };
+  const aiProviderResolverServiceMock = { resolver: jest.fn() };
   const pdfTextExtractorMock = { extraer: jest.fn() };
   const realtimeGatewayMock = { emitToEstudio: jest.fn() };
   const planCuentasServiceMock = { findAll: jest.fn() };
@@ -76,11 +84,16 @@ describe('ExtractosIaProcessor', () => {
       page: 1,
       limit: 100,
     });
+    // Default: nada conectado en Configuración → Integraciones — cae al stub.
+    aiProviderResolverServiceMock.resolver.mockResolvedValue(null);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         ExtractosIaProcessor,
-        { provide: AI_EXTRACTION_PORT, useValue: fakePort },
+        { provide: AiExtractionStubAdapter, useValue: fakePort },
+        { provide: AnthropicExtractionAdapter, useValue: anthropicAdapterMock },
+        { provide: OpenAiExtractionAdapter, useValue: openAiAdapterMock },
+        { provide: AiProviderResolverService, useValue: aiProviderResolverServiceMock },
         { provide: getModelToken(ExtractoBancario.name), useValue: extractoModelMock },
         { provide: PdfTextExtractorService, useValue: pdfTextExtractorMock },
         { provide: RealtimeGateway, useValue: realtimeGatewayMock },
@@ -427,6 +440,58 @@ describe('ExtractosIaProcessor', () => {
       await processor.process(buildJob());
 
       expect(reglasClasificacionServiceMock.crearSugeridaPorIa).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('selección de proveedor de IA (Configuración → Integraciones)', () => {
+    it('usa el adapter de Anthropic con la credencial resuelta cuando el resolver la indica', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      aiProviderResolverServiceMock.resolver.mockResolvedValue({
+        proveedor: ProveedorIA.ANTHROPIC,
+        apiKey: 'sk-ant-resuelta',
+        modelo: 'claude-sonnet-5',
+      });
+      anthropicAdapterMock.extraerMovimientos.mockResolvedValue({
+        exitoso: true,
+        movimientos: [],
+        reglasSugeridas: [],
+      });
+
+      await processor.process(buildJob());
+
+      expect(aiProviderResolverServiceMock.resolver).toHaveBeenCalledWith(
+        expect.any(Types.ObjectId),
+        clienteId,
+      );
+      expect(anthropicAdapterMock.extraerMovimientos).toHaveBeenCalledWith(expect.any(Object), {
+        apiKey: 'sk-ant-resuelta',
+        modelo: 'claude-sonnet-5',
+      });
+      expect(openAiAdapterMock.extraerMovimientos).not.toHaveBeenCalled();
+      expect(fakePort.extraerMovimientos).not.toHaveBeenCalled();
+    });
+
+    it('usa el adapter de OpenAI sin credencial explícita cuando el proveedor resuelto no tiene key propia conectada (cae al env del adapter)', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      aiProviderResolverServiceMock.resolver.mockResolvedValue({ proveedor: ProveedorIA.OPENAI });
+      openAiAdapterMock.extraerMovimientos.mockResolvedValue({
+        exitoso: true,
+        movimientos: [],
+        reglasSugeridas: [],
+      });
+
+      await processor.process(buildJob());
+
+      expect(openAiAdapterMock.extraerMovimientos).toHaveBeenCalledWith(
+        expect.any(Object),
+        undefined,
+      );
+      expect(anthropicAdapterMock.extraerMovimientos).not.toHaveBeenCalled();
+      expect(fakePort.extraerMovimientos).not.toHaveBeenCalled();
     });
   });
 });

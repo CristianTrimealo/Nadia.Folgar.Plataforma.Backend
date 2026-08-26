@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type CatedralSyncLogDocument = HydratedDocument<CatedralSyncLog>;
@@ -7,6 +7,7 @@ export type CatedralSyncLogDocument = HydratedDocument<CatedralSyncLog>;
 export enum CatedralSyncOperacion {
   EXPORTAR_CLIENTES = 'exportar_clientes',
   IMPORTAR_MOVIMIENTOS = 'importar_movimientos',
+  EXPORTAR_ASIENTO_CONTABLE = 'exportar_asiento_contable',
 }
 
 export enum CatedralSyncEstado {
@@ -36,7 +37,7 @@ export class CatedralSyncLog {
   @Prop({ required: true, default: Date.now })
   fecha: Date;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

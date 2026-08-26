@@ -256,6 +256,20 @@ export class ExtractosIaService {
     return extracto;
   }
 
+  /**
+   * Expone el documento completo (tipado, con `movimientos`/saldos intactos)
+   * para consumidores fuera de este service — a diferencia de `findOne`, que
+   * devuelve el objeto aplanado con `subtotalesPorConcepto` para la pantalla
+   * de detalle. Lo usa `AsientoContableService` vía `CatedralFileAdapter`
+   * para armar el asiento a exportar.
+   */
+  async obtenerDocumentoCompleto(
+    id: string,
+    estudioId: Types.ObjectId,
+  ): Promise<ExtractoBancarioDocument> {
+    return this.obtenerDocumento(id, estudioId);
+  }
+
   calcularSubtotalesPorConcepto(
     movimientos: { concepto: string; monto: number }[],
   ): SubtotalesPorConcepto {

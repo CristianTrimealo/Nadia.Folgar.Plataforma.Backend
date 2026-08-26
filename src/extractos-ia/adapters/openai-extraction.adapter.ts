@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod/v4';
 import {
+  AiCredenciales,
   AiExtractionInput,
   AiExtractionPort,
   ExtraccionResultado,
@@ -26,7 +27,11 @@ type ExtraccionParseada = z.infer<typeof ExtraccionSchema>;
  * usa `AnthropicExtractionAdapter` — mismo contrato de entrada/salida, mismo
  * comportamiento esperado, solo cambia el proveedor de IA.
  *
- * Seleccionado vía `AI_PROVIDER=openai` en `extractos-ia.module.ts`.
+ * Seleccionado dinámicamente por `ExtractosIaProcessor` vía
+ * `AiProviderResolverService` (Configuración → Integraciones) — si la
+ * resolución trae una `apiKey` propia (key conectada por el estudio), se usa
+ * esa para esta llamada puntual; si no, se cae a la del constructor
+ * (`OPENAI_API_KEY` de entorno, comportamiento previo a Configuración).
  */
 @Injectable()
 export class OpenAiExtractionAdapter implements AiExtractionPort {
@@ -39,10 +44,16 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
     this.modelo = configService.get<string>('OPENAI_MODEL') ?? 'gpt-5.1';
   }
 
-  async extraerMovimientos(input: AiExtractionInput): Promise<ExtraccionResultado> {
+  async extraerMovimientos(
+    input: AiExtractionInput,
+    credenciales?: AiCredenciales,
+  ): Promise<ExtraccionResultado> {
+    const client = credenciales?.apiKey ? new OpenAI({ apiKey: credenciales.apiKey }) : this.client;
+    const modelo = credenciales?.modelo ?? this.modelo;
+
     try {
-      const completion = await this.client.chat.completions.parse({
-        model: this.modelo,
+      const completion = await client.chat.completions.parse({
+        model: modelo,
         max_completion_tokens: MAX_TOKENS_RESPUESTA,
         messages: [
           { role: 'system', content: PROMPT_SISTEMA },
@@ -93,7 +104,7 @@ export class OpenAiExtractionAdapter implements AiExtractionPort {
         reglasSugeridas,
         saldoInicialDeclarado: resultado.saldoInicialDeclarado ?? undefined,
         saldoFinalDeclarado: resultado.saldoFinalDeclarado ?? undefined,
-        mensaje: `Extraídos ${movimientos.length} movimientos con ${this.modelo}.`,
+        mensaje: `Extraídos ${movimientos.length} movimientos con ${modelo}.`,
       };
     } catch (error) {
       const mensaje =

@@ -78,16 +78,22 @@ export class ReglasClasificacionService {
     return regla;
   }
 
-  /** Valida que la cuenta contable (y la cuenta bancaria, si viene) pertenezcan al mismo cliente. */
+  /**
+   * Valida que `cuentaContableId` exista (ya no está scopeado por cliente —
+   * ver `CuentaContable`) y que, si viene, `cuentaBancariaId` pertenezca al
+   * mismo cliente.
+   */
   private async assertReferenciasConsistentes(
     clienteId: string,
     cuentaContableId: string,
     cuentaBancariaId: string | undefined,
     estudioId: Types.ObjectId,
+    cuentaContableSecundariaId?: string,
   ): Promise<void> {
-    const cuentaContable = await this.planCuentasService.findOne(cuentaContableId, estudioId);
-    if (cuentaContable.clienteId.toString() !== clienteId) {
-      throw new BadRequestException('La cuenta contable debe pertenecer al mismo cliente');
+    await this.planCuentasService.findOne(cuentaContableId, estudioId);
+
+    if (cuentaContableSecundariaId) {
+      await this.planCuentasService.findOne(cuentaContableSecundariaId, estudioId);
     }
 
     if (cuentaBancariaId) {
@@ -112,6 +118,7 @@ export class ReglasClasificacionService {
       dto.cuentaContableId,
       dto.cuentaBancariaId,
       estudioId,
+      dto.cuentaContableSecundariaId,
     );
 
     const procedencia = dto.origenMovimientoId
@@ -167,12 +174,13 @@ export class ReglasClasificacionService {
     if (dto.clienteId) {
       await this.clientesService.findOne(dto.clienteId, estudioId);
     }
-    if (dto.cuentaContableId || dto.cuentaBancariaId || dto.clienteId) {
+    if (dto.cuentaContableId || dto.cuentaBancariaId || dto.clienteId || dto.cuentaContableSecundariaId) {
       await this.assertReferenciasConsistentes(
         nextClienteId,
         dto.cuentaContableId ?? regla.cuentaContableId.toString(),
         dto.cuentaBancariaId ?? regla.cuentaBancariaId?.toString(),
         estudioId,
+        dto.cuentaContableSecundariaId ?? regla.cuentaContableSecundariaId?.toString(),
       );
     }
 

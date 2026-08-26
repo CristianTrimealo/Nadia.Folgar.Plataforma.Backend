@@ -27,6 +27,8 @@ export const PERMISSIONS = {
   CATEDRAL_READ: 'catedral.read',
   CATEDRAL_WRITE: 'catedral.write',
   ASISTENTE_IA_USO: 'asistente-ia.uso',
+  CONFIGURACION_READ: 'configuracion.read',
+  CONFIGURACION_WRITE: 'configuracion.write',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

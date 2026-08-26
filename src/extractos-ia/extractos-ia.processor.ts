@@ -1,15 +1,18 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Job } from 'bullmq';
 import {
-  AI_EXTRACTION_PORT,
+  AiCredenciales,
   AiExtractionPort,
   MovimientoExtraido,
   ReglaClasificacionSugerida,
   ReglaExistenteResumen,
 } from './ports/ai-extraction.port';
+import { AiExtractionStubAdapter } from './adapters/ai-extraction-stub.adapter';
+import { AnthropicExtractionAdapter } from './adapters/anthropic-extraction.adapter';
+import { OpenAiExtractionAdapter } from './adapters/openai-extraction.adapter';
 import { PdfTextExtractorService } from './pdf-text-extractor.service';
 import {
   EstadoExtracto,
@@ -23,6 +26,8 @@ import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
 import { CuentaContableDocument } from '../plan-cuentas/schemas/cuenta-contable.schema';
 import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
 import { LadoAsiento } from '../reglas-clasificacion/schemas/regla-clasificacion.schema';
+import { AiProviderResolverService } from '../configuracion/ai-provider-resolver.service';
+import { ProveedorIA } from '../common/enums/proveedor-ia.enum';
 import {
   MovimientoValidable,
   construirMovimientosConValidacion,
@@ -61,21 +66,51 @@ export interface ProcesarExtractoJobData {
  * Al terminar (éxito, `requiere_revision` o error) notifica por WebSocket
  * vía `RealtimeGateway` a la room del estudio dueño del extracto, para que
  * el Frontend actualice la fila sin tener que pollear.
+ *
+ * PROVEEDOR DE IA: ya no se inyecta un único `AiExtractionPort` fijo por
+ * variable de entorno (`AI_PROVIDER`) — se inyectan los tres adapters
+ * directo y, al ppio de cada job, `AiProviderResolverService` resuelve cuál
+ * usar (y con qué credencial) para `(estudioId, extracto.clienteId)` — ver
+ * Configuración → Integraciones. Sin ninguna integración conectada, resuelve
+ * `null` y se cae al stub, igual que el comportamiento previo a ese módulo.
  */
 @Processor('extractos-ia')
 export class ExtractosIaProcessor extends WorkerHost {
   private readonly logger = new Logger(ExtractosIaProcessor.name);
 
   constructor(
-    @Inject(AI_EXTRACTION_PORT) private readonly aiExtractionPort: AiExtractionPort,
     @InjectModel(ExtractoBancario.name)
     private readonly extractoModel: Model<ExtractoBancarioDocument>,
     private readonly pdfTextExtractor: PdfTextExtractorService,
     private readonly realtimeGateway: RealtimeGateway,
     private readonly planCuentasService: PlanCuentasService,
     private readonly reglasClasificacionService: ReglasClasificacionService,
+    private readonly aiProviderResolverService: AiProviderResolverService,
+    private readonly anthropicAdapter: AnthropicExtractionAdapter,
+    private readonly openAiAdapter: OpenAiExtractionAdapter,
+    private readonly stubAdapter: AiExtractionStubAdapter,
   ) {
     super();
+  }
+
+  /** Resuelve, para este job puntual, qué adapter usar y con qué credencial (ver Configuración → Integraciones). */
+  private async resolverAdapter(
+    estudioId: Types.ObjectId,
+    clienteId: Types.ObjectId,
+  ): Promise<{ port: AiExtractionPort; credenciales?: AiCredenciales }> {
+    const credencial = await this.aiProviderResolverService.resolver(estudioId, clienteId);
+    if (!credencial) {
+      return { port: this.stubAdapter };
+    }
+
+    const port =
+      credencial.proveedor === ProveedorIA.ANTHROPIC ? this.anthropicAdapter : this.openAiAdapter;
+    return {
+      port,
+      credenciales: credencial.apiKey
+        ? { apiKey: credencial.apiKey, modelo: credencial.modelo }
+        : undefined,
+    };
   }
 
   async process(job: Job<ProcesarExtractoJobData>): Promise<void> {
@@ -103,10 +138,11 @@ export class ExtractosIaProcessor extends WorkerHost {
       }
 
       const estudioObjectId = new Types.ObjectId(estudioId);
-      cuentasContables = await this.obtenerCuentasContablesActivas(
-        extracto.clienteId,
+      const { port: aiExtractionPort, credenciales } = await this.resolverAdapter(
         estudioObjectId,
+        extracto.clienteId,
       );
+      cuentasContables = await this.obtenerCuentasContablesActivas(estudioObjectId);
       const reglasExistentes = await this.obtenerReglasExistentes(
         extracto.clienteId,
         extracto.cuentaBancariaId,
@@ -114,16 +150,19 @@ export class ExtractosIaProcessor extends WorkerHost {
         cuentasContables,
       );
 
-      let resultado = await this.aiExtractionPort.extraerMovimientos({
-        nombreArchivo,
-        texto,
-        cuentasContablesDisponibles: cuentasContables.map((c) => ({
-          codigo: c.codigo,
-          nombre: c.nombre,
-          naturaleza: c.naturaleza,
-        })),
-        reglasExistentes,
-      });
+      let resultado = await aiExtractionPort.extraerMovimientos(
+        {
+          nombreArchivo,
+          texto,
+          cuentasContablesDisponibles: cuentasContables.map((c) => ({
+            codigo: c.codigo,
+            nombre: c.nombre,
+            naturaleza: c.naturaleza,
+          })),
+          reglasExistentes,
+        },
+        credenciales,
+      );
 
       if (!resultado.exitoso) {
         extracto.estado = EstadoExtracto.ERROR;
@@ -146,11 +185,14 @@ export class ExtractosIaProcessor extends WorkerHost {
       // Reintento acotado (máx. 1): si hay diferencias de saldo, se le pide a
       // la IA que revise solo las filas problemáticas antes de resignarse.
       if (movimientos.some((m) => m.validacionSaldo === ValidacionSaldo.DIFERENCIA)) {
-        const reintento = await this.aiExtractionPort.extraerMovimientos({
-          nombreArchivo,
-          texto,
-          pistaRevision: describirDiferencias(movimientos),
-        });
+        const reintento = await aiExtractionPort.extraerMovimientos(
+          {
+            nombreArchivo,
+            texto,
+            pistaRevision: describirDiferencias(movimientos),
+          },
+          credenciales,
+        );
 
         if (reintento.exitoso) {
           const movimientosReintento = construirMovimientosConValidacion(
@@ -182,14 +224,11 @@ export class ExtractosIaProcessor extends WorkerHost {
     this.notificar(estudioId, extracto);
   }
 
+  /** Plan de cuentas del estudio — compartido entre clientes (ver `CuentaContable`), ya no filtrado por `clienteId`. */
   private async obtenerCuentasContablesActivas(
-    clienteId: Types.ObjectId,
     estudioId: Types.ObjectId,
   ): Promise<CuentaContableDocument[]> {
-    const cuentas = await this.planCuentasService.findAll(
-      { clienteId: clienteId.toString(), limit: 100 },
-      estudioId,
-    );
+    const cuentas = await this.planCuentasService.findAll({ limit: 100 }, estudioId);
     return cuentas.data.filter((c) => c.activo);
   }
 

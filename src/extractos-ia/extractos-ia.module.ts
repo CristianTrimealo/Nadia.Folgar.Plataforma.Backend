@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule, getQueueToken } from '@nestjs/bullmq';
-import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { ExtractoBancario, ExtractoBancarioSchema } from './schemas/extracto-bancario.schema';
@@ -12,7 +11,6 @@ import {
 } from './extractos-ia.service';
 import { ExtractosIaController } from './extractos-ia.controller';
 import { ExtractosIaProcessor, ProcesarExtractoJobData } from './extractos-ia.processor';
-import { AI_EXTRACTION_PORT } from './ports/ai-extraction.port';
 import { AiExtractionStubAdapter } from './adapters/ai-extraction-stub.adapter';
 import { AnthropicExtractionAdapter } from './adapters/anthropic-extraction.adapter';
 import { OpenAiExtractionAdapter } from './adapters/openai-extraction.adapter';
@@ -22,6 +20,7 @@ import { CuentasBancariasModule } from '../cuentas-bancarias/cuentas-bancarias.m
 import { PlanCuentasModule } from '../plan-cuentas/plan-cuentas.module';
 import { ReglasClasificacionModule } from '../reglas-clasificacion/reglas-clasificacion.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { ConfiguracionModule } from '../configuracion/configuracion.module';
 import { useRedisQueues } from '../config/queue-mode';
 
 const redisQueuesEnabled = useRedisQueues();
@@ -49,11 +48,12 @@ const inlineQueueLogger = new Logger('InlineExtractosQueue');
  * antes, que dejó de alcanzar en cuanto la IA empezó a tardar más que el
  * timeout HTTP del Frontend.
  *
- * El provider de `AI_EXTRACTION_PORT` se selecciona por la variable de
- * entorno `AI_PROVIDER` (`stub` por defecto — sin credenciales, para
- * desarrollo/tests; `anthropic` usa Claude Sonnet 5; `openai` usa GPT-5.1).
- * `ExtractosIaService`, `ExtractosIaProcessor` y `ExtractosIaController` no
- * requieren cambios al cambiar de proveedor — solo este factory.
+ * PROVEEDOR DE IA: `ExtractosIaProcessor` inyecta los tres adapters
+ * (Anthropic/OpenAI/Stub) directo y resuelve cuál usar en cada job vía
+ * `AiProviderResolverService` (`ConfiguracionModule` — Configuración →
+ * Integraciones, con fallback a `AI_PROVIDER` de entorno y, sin nada
+ * configurado, al stub). Reemplaza el factory estático que este módulo tenía
+ * antes.
  *
  * `ExtractosIaProcessor` también inyecta `PlanCuentasModule` y
  * `ReglasClasificacionModule`: en la misma llamada de IA que transcribe los
@@ -69,6 +69,7 @@ const inlineQueueLogger = new Logger('InlineExtractosQueue');
     PlanCuentasModule,
     ReglasClasificacionModule,
     RealtimeModule,
+    ConfiguracionModule,
   ],
   controllers: [ExtractosIaController],
   providers: [
@@ -76,16 +77,9 @@ const inlineQueueLogger = new Logger('InlineExtractosQueue');
     ExtractosIaProcessor,
     PdfTextExtractorService,
     ExtractoDeteccionService,
-    {
-      provide: AI_EXTRACTION_PORT,
-      useFactory: (configService: ConfigService) => {
-        const provider = configService.get<string>('AI_PROVIDER');
-        if (provider === 'anthropic') return new AnthropicExtractionAdapter(configService);
-        if (provider === 'openai') return new OpenAiExtractionAdapter(configService);
-        return new AiExtractionStubAdapter();
-      },
-      inject: [ConfigService],
-    },
+    AnthropicExtractionAdapter,
+    OpenAiExtractionAdapter,
+    AiExtractionStubAdapter,
     {
       provide: EXTRACTOS_PROCESSING_QUEUE,
       useFactory: (

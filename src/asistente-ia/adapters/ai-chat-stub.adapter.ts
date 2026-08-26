@@ -12,6 +12,7 @@ import { AiChatPort, MensajeHistorial, RespuestaAsistente } from '../ports/ai-ch
 export class AiChatStubAdapter implements AiChatPort {
   private readonly logger = new Logger(AiChatStubAdapter.name);
 
+  /** No usa `credenciales` — el stub nunca llama a ningún proveedor real. */
   async responder(pregunta: string, historial: MensajeHistorial[]): Promise<RespuestaAsistente> {
     this.logger.warn(
       `[STUB] Pregunta recibida ("${pregunta}") con ${historial.length} mensaje(s) de historial — ` +

@@ -25,6 +25,7 @@ import { AlertaPresentacionesModule } from './alerta-presentaciones/alerta-prese
 import { IvaTareasModule } from './iva-tareas/iva-tareas.module';
 import { FacturacionElectronicaModule } from './facturacion-electronica/facturacion-electronica.module';
 import { AsistenteIaModule } from './asistente-ia/asistente-ia.module';
+import { ConfiguracionModule } from './configuracion/configuracion.module';
 import { HealthModule } from './health/health.module';
 import { useRedisQueues } from './config/queue-mode';
 
@@ -98,6 +99,7 @@ const queueImports = useRedisQueues()
     IvaTareasModule,
     FacturacionElectronicaModule,
     AsistenteIaModule,
+    ConfiguracionModule,
     HealthModule,
   ],
   providers: [

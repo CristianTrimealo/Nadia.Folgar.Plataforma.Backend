@@ -1,8 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import { Cliente, ClienteDocument } from './schemas/cliente.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import {
+  IntegracionIa,
+  IntegracionIaDocument,
+} from '../configuracion/schemas/integracion-ia.schema';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { QueryClienteDto } from './dto/query-cliente.dto';
@@ -23,6 +32,8 @@ export class ClientesService {
   constructor(
     @InjectModel(Cliente.name) private readonly clienteModel: Model<ClienteDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(IntegracionIa.name)
+    private readonly integracionIaModel: Model<IntegracionIaDocument>,
   ) {}
 
   /**
@@ -64,6 +75,23 @@ export class ClientesService {
       obj.responsablesEfectivos = automaticos;
       return obj;
     });
+  }
+
+  /** `motorIaPreferido` solo puede setearse a un proveedor que el estudio ya conectó en Configuración → Integraciones. */
+  private async validarMotorIaPreferido(
+    dto: CreateClienteDto | UpdateClienteDto,
+    estudioId: Types.ObjectId,
+  ): Promise<void> {
+    if (!dto.motorIaPreferido) return;
+
+    const conectada = await this.integracionIaModel
+      .exists({ estudioId, proveedor: dto.motorIaPreferido })
+      .exec();
+    if (!conectada) {
+      throw new BadRequestException(
+        `El estudio no tiene conectado "${dto.motorIaPreferido}" en Configuración → Integraciones.`,
+      );
+    }
   }
 
   async findAll(
@@ -130,6 +158,7 @@ export class ClientesService {
     if (existing) {
       throw new ConflictException('Ya existe un cliente con ese CUIT');
     }
+    await this.validarMotorIaPreferido(dto, estudioId);
 
     return this.clienteModel.create({ ...dto, cuit, estudioId });
   }
@@ -140,6 +169,7 @@ export class ClientesService {
     estudioId: Types.ObjectId,
   ): Promise<Record<string, unknown>> {
     const cliente = await this.findOneDocument(id, estudioId);
+    await this.validarMotorIaPreferido(dto, estudioId);
     const { responsableIds, ...rest } = dto;
     Object.assign(cliente, { ...rest, cuit: dto.cuit ? normalizeCuit(dto.cuit) : cliente.cuit });
     // Se maneja aparte del spread de arriba: `undefined` (campo ausente del

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type TareaPresentacionDocument = HydratedDocument<TareaPresentacion>;
@@ -73,7 +73,7 @@ export const EtiquetaSchema = SchemaFactory.createForClass(Etiqueta);
  */
 @Schema(baseSchemaOptions)
 export class TareaPresentacion {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   /**

@@ -5,25 +5,35 @@ import { CatedralService } from './catedral.service';
 import { CatedralController } from './catedral.controller';
 import { CATEDRAL_SYNC_PORT } from './ports/catedral-sync.port';
 import { CatedralFileStubAdapter } from './adapters/catedral-file-stub.adapter';
+import { CatedralFileAdapter } from './adapters/catedral-file.adapter';
+import { ExtractosIaModule } from '../extractos-ia/extractos-ia.module';
+import { AsientosContablesModule } from '../asientos-contables/asientos-contables.module';
 
 /**
  * Módulo "Integración con Catedral" (backlog FOLGAR-028 a FOLGAR-032).
  *
- * Deliberadamente NO se importa en `AppModule` todavía — esa integración
- * queda a cargo de otro paso posterior.
- *
- * El provider de `CATEDRAL_SYNC_PORT` apunta hoy a `CatedralFileStubAdapter`
- * porque FOLGAR-029 (API vs. exportación/importación de archivos vs. otra
- * vía) todavía no está decidido con el cliente. Cuando se decida, alcanza con
- * reemplazar el `useClass` de este provider por el adapter real —
- * `CatedralService` y `CatedralController` no deberían requerir cambios.
+ * FOLGAR-029 (API vs. exportación/importación de archivos vs. otra vía) se
+ * resolvió: el instructivo interno del estudio ("Importar asientos... a
+ * Catedral.docx") confirma que la vía es exportación/importación de archivo
+ * Excel, no API — Catedral genera su propia planilla, se completa y se
+ * re-importa. `CatedralFileAdapter` implementa esa vía para
+ * `exportarAsientoContable`; `exportarClientes`/`importarMovimientos` siguen
+ * sin vía definida. `CatedralFileStubAdapter` se mantiene en el repo (sigue
+ * cubierto por su propio test) por si hace falta volver al comportamiento
+ * 100% simulado — alcanza con cambiar el `useClass` de este provider.
  */
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: CatedralSyncLog.name, schema: CatedralSyncLogSchema }]),
+    ExtractosIaModule,
+    AsientosContablesModule,
   ],
   controllers: [CatedralController],
-  providers: [CatedralService, { provide: CATEDRAL_SYNC_PORT, useClass: CatedralFileStubAdapter }],
+  providers: [
+    CatedralService,
+    CatedralFileStubAdapter,
+    { provide: CATEDRAL_SYNC_PORT, useClass: CatedralFileAdapter },
+  ],
   exports: [CatedralService],
 })
 export class CatedralModule {}

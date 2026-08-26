@@ -36,6 +36,7 @@ import {
 export class AiExtractionStubAdapter implements AiExtractionPort {
   private readonly logger = new Logger(AiExtractionStubAdapter.name);
 
+  /** No usa `credenciales` — el stub nunca llama a ningún proveedor real. */
   extraerMovimientos(input: AiExtractionInput): Promise<ExtraccionResultado> {
     this.logger.warn(
       `[STUB] extraerMovimientos() invocado con nombreArchivo="${input.nombreArchivo}" (AI_PROVIDER=stub)`,

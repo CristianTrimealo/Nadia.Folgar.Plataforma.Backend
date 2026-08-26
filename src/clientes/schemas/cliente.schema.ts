@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
+import { ProveedorIA } from '../../common/enums/proveedor-ia.enum';
 
 export type ClienteDocument = HydratedDocument<Cliente>;
 
@@ -60,8 +61,17 @@ export class Cliente {
   @Prop({ default: true })
   activo: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
+
+  /**
+   * Override del motor de IA que usan los procesos con IA de este cliente
+   * (hoy: extractos-ia) — vacío = usa `Estudio.motorIaPorDefecto`. Solo se
+   * puede setear a un proveedor que el estudio ya tenga conectado en
+   * Configuración → Integraciones (`ClientesService` lo valida al guardar).
+   */
+  @Prop({ type: String, enum: ProveedorIA })
+  motorIaPreferido?: ProveedorIA;
 }
 
 export const ClienteSchema = SchemaFactory.createForClass(Cliente);

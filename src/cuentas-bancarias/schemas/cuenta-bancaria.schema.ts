@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type CuentaBancariaDocument = HydratedDocument<CuentaBancaria>;
@@ -18,7 +18,7 @@ export enum MonedaCuentaBancaria {
  */
 @Schema(baseSchemaOptions)
 export class CuentaBancaria {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
@@ -33,13 +33,13 @@ export class CuentaBancaria {
   @Prop({ type: String, enum: MonedaCuentaBancaria, default: MonedaCuentaBancaria.ARS })
   moneda: MonedaCuentaBancaria;
 
-  @Prop({ type: Types.ObjectId, ref: 'CuentaContable', required: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'CuentaContable', required: true })
   cuentaContableId: Types.ObjectId;
 
   @Prop({ default: true })
   activo: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

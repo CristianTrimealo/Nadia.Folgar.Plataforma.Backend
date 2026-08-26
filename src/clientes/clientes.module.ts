@@ -2,9 +2,19 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Cliente, ClienteSchema } from './schemas/cliente.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { IntegracionIa, IntegracionIaSchema } from '../configuracion/schemas/integracion-ia.schema';
 import { ClientesService } from './clientes.service';
 import { ClientesController } from './clientes.controller';
 
+/**
+ * Registra también el schema de `IntegracionIa` (dueño real: `ConfiguracionModule`)
+ * para que `ClientesService` pueda validar `motorIaPreferido` contra las
+ * integraciones conectadas sin importar `ConfiguracionModule` — que a su vez
+ * importa `ClientesModule` para `AiProviderResolverService`. Registrar el
+ * mismo schema desde dos módulos con `MongooseModule.forFeature` es sano en
+ * Mongoose (misma colección, sin acoplar los módulos entre sí); importar
+ * `ConfiguracionModule` acá sí generaría una dependencia circular real.
+ */
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -13,6 +23,7 @@ import { ClientesController } from './clientes.controller';
       // titular/es del estudio marcados con `User.esTitular`) en
       // `ClientesService` — ver el comentario en `cliente.schema.ts`.
       { name: User.name, schema: UserSchema },
+      { name: IntegracionIa.name, schema: IntegracionIaSchema },
     ]),
   ],
   controllers: [ClientesController],

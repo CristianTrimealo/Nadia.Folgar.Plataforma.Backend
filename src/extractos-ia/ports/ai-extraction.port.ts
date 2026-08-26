@@ -108,8 +108,22 @@ export interface AiExtractionInput {
   reglasExistentes?: ReglaExistenteResumen[];
 }
 
+/**
+ * Credencial resuelta por `AiProviderResolverService` (Configuración →
+ * Integraciones) para esta llamada puntual. Si `apiKey` viene vacía, el
+ * adapter cae a su propia `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` de entorno
+ * (constructor) — comportamiento previo a Configuración, intacto.
+ */
+export interface AiCredenciales {
+  apiKey?: string;
+  modelo?: string;
+}
+
 export interface AiExtractionPort {
-  extraerMovimientos(input: AiExtractionInput): Promise<ExtraccionResultado>;
+  extraerMovimientos(
+    input: AiExtractionInput,
+    credenciales?: AiCredenciales,
+  ): Promise<ExtraccionResultado>;
 }
 
 /**

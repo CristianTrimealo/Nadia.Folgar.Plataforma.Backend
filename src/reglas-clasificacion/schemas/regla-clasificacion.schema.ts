@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type ReglaClasificacionDocument = HydratedDocument<ReglaClasificacion>;
@@ -64,21 +64,36 @@ export const CondicionMontoSchema = SchemaFactory.createForClass(CondicionMonto)
  */
 @Schema(baseSchemaOptions)
 export class ReglaClasificacion {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   /** Null = aplica a todas las cuentas bancarias del cliente. */
-  @Prop({ type: Types.ObjectId, ref: 'CuentaBancaria' })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'CuentaBancaria' })
   cuentaBancariaId?: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   conceptoContable: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'CuentaContable', required: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'CuentaContable', required: true })
   cuentaContableId: Types.ObjectId;
 
   @Prop({ type: String, enum: LadoAsiento, required: true })
   ladoAsiento: LadoAsiento;
+
+  /**
+   * Split porcentual (caso real: Ley 25.413 débitos/créditos bancarios,
+   * repartida entre una cuenta de gasto no computable y una recuperable —
+   * ver análisis forense de "Movimientos Banco Galicia Cookin.xls"). Cuando
+   * están presentes, el movimiento se reparte: `porcentajeSecundario`% del
+   * monto va a `cuentaContableSecundariaId` (mismo `ladoAsiento` que la
+   * cuenta principal) y el resto a `cuentaContableId`. Ambos campos van
+   * juntos o ninguno — ver `CreateReglaClasificacionDto`.
+   */
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'CuentaContable' })
+  cuentaContableSecundariaId?: Types.ObjectId;
+
+  @Prop()
+  porcentajeSecundario?: number;
 
   @Prop({ trim: true })
   patronTexto?: string;
@@ -96,10 +111,10 @@ export class ReglaClasificacion {
   procedencia: ProcedenciaRegla;
 
   /** Si `procedencia` es 'aprendida', qué movimiento originó esta regla (auditoría). */
-  @Prop({ type: Types.ObjectId })
+  @Prop({ type: SchemaTypes.ObjectId })
   origenMovimientoId?: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true })
   creadoPor: Types.ObjectId;
 
   @Prop({ default: true })
@@ -109,7 +124,7 @@ export class ReglaClasificacion {
   @Prop({ default: 0 })
   vecesAplicada: number;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

@@ -1,8 +1,9 @@
 /**
  * Puerto del Asistente IA institucional (patrón puerto/adapter — ver ADR #5
- * en CLAUDE.md). No hay proveedor de IA confirmado todavía para este
- * proyecto (ni OpenAI ni Anthropic ni nadie) — el adapter activo hoy es un
- * stub, ver `adapters/ai-chat-stub.adapter.ts`.
+ * en CLAUDE.md). El proveedor se resuelve dinámicamente por
+ * `AiProviderResolverService` (Configuración → Integraciones, con fallback a
+ * `AI_PROVIDER` de entorno) — sin ninguna integración conectada, se usa el
+ * adapter stub (`adapters/ai-chat-stub.adapter.ts`).
  */
 export interface MensajeHistorial {
   rol: 'usuario' | 'asistente';
@@ -13,8 +14,18 @@ export interface RespuestaAsistente {
   respuesta: string;
 }
 
+/** Credencial resuelta por `AiProviderResolverService` para esta llamada puntual — ver `AiCredenciales` en `extractos-ia/ports/ai-extraction.port.ts` (mismo shape, puerto distinto). */
+export interface AiChatCredenciales {
+  apiKey?: string;
+  modelo?: string;
+}
+
 export interface AiChatPort {
-  responder(pregunta: string, historial: MensajeHistorial[]): Promise<RespuestaAsistente>;
+  responder(
+    pregunta: string,
+    historial: MensajeHistorial[],
+    credenciales?: AiChatCredenciales,
+  ): Promise<RespuestaAsistente>;
 }
 
 export const AI_CHAT_PORT = Symbol('AI_CHAT_PORT');

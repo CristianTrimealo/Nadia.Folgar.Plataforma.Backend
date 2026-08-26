@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UnprocessableEntityException,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,6 +19,7 @@ import { AuthenticatedUser } from '../common/types/authenticated-user';
 import { CatedralService } from './catedral.service';
 import { SyncCatedralDto } from './dto/sync-catedral.dto';
 import { QueryCatedralSyncLogDto } from './dto/query-catedral-sync-log.dto';
+import { ExportarAsientoDto } from './dto/exportar-asiento.dto';
 import { CatedralSyncOperacion } from './schemas/catedral-sync-log.schema';
 
 @ApiTags('catedral')
@@ -32,6 +42,35 @@ export class CatedralController {
       return this.catedralService.importarMovimientos(dto.origen, estudioId);
     }
     return this.catedralService.exportarClientes(estudioId);
+  }
+
+  /**
+   * Arma el asiento contable del extracto (fuente autoritativa server-side,
+   * no la vista previa del Frontend) y devuelve la planilla lista para
+   * importar en Catedral. 422 si el asiento no cuadra o quedan movimientos
+   * sin clasificar — nunca se genera un archivo a medio validar.
+   */
+  @Post('asientos/:extractoId/exportar')
+  @Permissions(PERMISSIONS.EXTRACTOS_READ, PERMISSIONS.CATEDRAL_WRITE)
+  async exportarAsiento(
+    @Param('extractoId') extractoId: string,
+    @Body() dto: ExportarAsientoDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const resultado = await this.catedralService.exportarAsientoContable(
+      extractoId,
+      new Types.ObjectId(user.estudioId),
+      dto.asignacionesManuales,
+    );
+
+    if (!resultado.exitoso || !resultado.archivo) {
+      throw new UnprocessableEntityException({
+        message: resultado.mensaje,
+        validacion: resultado.validacion,
+      });
+    }
+
+    return resultado.archivo;
   }
 
   @Get('sync-logs')

@@ -1,10 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ClientesService } from './clientes.service';
 import { Cliente, RegimenFiscal } from './schemas/cliente.schema';
 import { User } from '../users/schemas/user.schema';
+import { IntegracionIa } from '../configuracion/schemas/integracion-ia.schema';
+import { ProveedorIA } from '../common/enums/proveedor-ia.enum';
 
 describe('ClientesService', () => {
   let service: ClientesService;
@@ -23,17 +25,20 @@ describe('ClientesService', () => {
       select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
     }),
   };
+  const integracionIaModelMock: any = { exists: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     userModelMock.find.mockReturnValue({
       select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
     });
+    integracionIaModelMock.exists.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
     const moduleRef = await Test.createTestingModule({
       providers: [
         ClientesService,
         { provide: getModelToken(Cliente.name), useValue: clienteModelMock },
         { provide: getModelToken(User.name), useValue: userModelMock },
+        { provide: getModelToken(IntegracionIa.name), useValue: integracionIaModelMock },
       ],
     }).compile();
 
@@ -228,6 +233,50 @@ describe('ClientesService', () => {
       };
 
       expect(result.responsablesEfectivos).toEqual([{ _id: titularId, nombre: 'Nadia Folgar' }]);
+    });
+  });
+
+  describe('motorIaPreferido', () => {
+    it('rechaza setear un motor que el estudio no tiene conectado', async () => {
+      clienteModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      integracionIaModelMock.exists.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
+      await expect(
+        service.create(
+          {
+            nombre: 'Cliente Test',
+            cuit: '20-12345678-9',
+            regimenFiscal: RegimenFiscal.MONOTRIBUTO,
+            motorIaPreferido: ProveedorIA.OPENAI,
+          },
+          estudioId,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(clienteModelMock.create).not.toHaveBeenCalled();
+    });
+
+    it('permite setear un motor que el estudio si tiene conectado', async () => {
+      clienteModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      clienteModelMock.create.mockResolvedValue({});
+      integracionIaModelMock.exists.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
+      });
+
+      await service.create(
+        {
+          nombre: 'Cliente Test',
+          cuit: '20-12345678-9',
+          regimenFiscal: RegimenFiscal.MONOTRIBUTO,
+          motorIaPreferido: ProveedorIA.OPENAI,
+        },
+        estudioId,
+      );
+
+      expect(integracionIaModelMock.exists).toHaveBeenCalledWith({
+        estudioId,
+        proveedor: ProveedorIA.OPENAI,
+      });
+      expect(clienteModelMock.create).toHaveBeenCalled();
     });
   });
 });

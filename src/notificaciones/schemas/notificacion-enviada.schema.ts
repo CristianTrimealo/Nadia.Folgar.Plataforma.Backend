@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type NotificacionEnviadaDocument = HydratedDocument<NotificacionEnviada>;
@@ -22,13 +22,13 @@ export enum EstadoEnvio {
  */
 @Schema(baseSchemaOptions)
 export class NotificacionEnviada {
-  @Prop({ type: Types.ObjectId, ref: 'Vencimiento', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Vencimiento', required: true, index: true })
   vencimientoId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'ReglaNotificacion', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'ReglaNotificacion', required: true, index: true })
   reglaId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   @Prop({ type: String, enum: CanalEnvio, required: true })
@@ -43,7 +43,7 @@ export class NotificacionEnviada {
   @Prop({ trim: true })
   detalleError?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

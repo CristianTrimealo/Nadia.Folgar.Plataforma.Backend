@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 
 export type NovedadFiscalDocument = HydratedDocument<NovedadFiscal>;
@@ -24,7 +24,7 @@ export enum NovedadFiscalEstado {
  */
 @Schema(baseSchemaOptions)
 export class NovedadFiscal {
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: true, index: true })
   clienteId: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
@@ -39,7 +39,7 @@ export class NovedadFiscal {
   @Prop({ type: String, enum: NovedadFiscalEstado, default: NovedadFiscalEstado.NUEVA })
   estado: NovedadFiscalEstado;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }
 

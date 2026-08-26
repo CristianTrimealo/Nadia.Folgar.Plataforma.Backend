@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 import { baseSchemaOptions } from '../../common/database/base-schema.options';
 import { RegimenFiscal } from '../../clientes/schemas/cliente.schema';
 
@@ -37,11 +37,11 @@ export class User {
   @Prop({ default: true })
   activo: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Estudio', required: true })
   estudioId: Types.ObjectId;
 
   /** Solo se completa para usuarios con rol "cliente": a qué Cliente del Estudio representan. */
-  @Prop({ type: Types.ObjectId, ref: 'Cliente', required: false })
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Cliente', required: false })
   clienteId?: Types.ObjectId;
 
   // ── Datos de "Mi perfil" (autogestión, sin backlog FOLGAR asociado — pedido

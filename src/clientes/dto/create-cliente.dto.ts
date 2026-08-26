@@ -9,6 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { RegimenFiscal } from '../schemas/cliente.schema';
+import { ProveedorIA } from '../../common/enums/proveedor-ia.enum';
 
 export class CreateClienteDto {
   @IsString()
@@ -50,4 +51,9 @@ export class CreateClienteDto {
   @IsArray()
   @IsMongoId({ each: true })
   responsableIds?: string[];
+
+  /** Override del motor de IA para este cliente — debe estar conectado en Configuración → Integraciones (validado en `ClientesService`). */
+  @IsOptional()
+  @IsEnum(ProveedorIA)
+  motorIaPreferido?: ProveedorIA;
 }
