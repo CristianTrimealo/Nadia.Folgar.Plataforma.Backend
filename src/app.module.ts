@@ -71,12 +71,17 @@ const queueImports = useRedisQueues()
       }),
     }),
     ...queueImports,
+    // Límite global por IP para toda la API (ver `THROTTLE_LIMIT` en
+    // .env.example para el porqué de 300: una sola carga del Dashboard ya
+    // dispara ~6-7 GET en paralelo). El login tiene su propio límite aparte,
+    // más estricto, vía `@Throttle` en `AuthController.login` — no depende
+    // de este default.
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => [
         {
           ttl: configService.get<number>('THROTTLE_TTL') ?? 60000,
-          limit: configService.get<number>('THROTTLE_LIMIT') ?? 20,
+          limit: configService.get<number>('THROTTLE_LIMIT') ?? 300,
         },
       ],
     }),

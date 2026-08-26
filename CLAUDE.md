@@ -124,6 +124,19 @@ shape `{statusCode,message,error,timestamp,path}` → 401 sin token).
     el handshake). En dev la cola puede correr inline (`QUEUE_MODE=inline`, default)
     para evitar caídas/ruido por Redis local ausente; Redis queda como infraestructura
     real cuando `QUEUE_MODE=redis` y `REDIS_URL` están configurados.
+11. **`THROTTLE_LIMIT` global subido de 20 a 300 por minuto** (`ThrottlerModule` en
+    `app.module.ts`, `APP_GUARD` sobre toda la API) — bug real reportado por el usuario:
+    "Inicio" (Dashboard) mostraba `ThrottlerException: Too Many Requests` con datos
+    reales que sí estaban disponibles. Causa: una sola carga del Dashboard dispara ~6-7
+    `GET` en paralelo (clientes/facturas/vencimientos/notificaciones/extractos/kanban,
+    ver "Pendiente de sincronizar" del Frontend) más el perfil que pide el sidebar en
+    cada navegación (`AppShell` → `GET /auth/me/profile`) — cualquier sesión real que
+    navegara un par de pantallas en el mismo minuto superaba el límite de 20, pensado
+    para un endpoint suelto, no para el patrón de uso real de un panel con varias
+    tarjetas cargando datos en paralelo. Subir el global así de alto hubiera debilitado
+    la protección contra fuerza bruta de `POST /auth/login`, así que ese endpoint suma
+    su propio límite aparte y más estricto (`@Throttle({ default: { limit: 10, ttl:
+    60000 } })`, 10/min) que no depende del default global.
 
 ## Referencia al backlog
 `docs/backlog/Folgar_Backlog_Tareas.json` (copiado desde el Frontend). 81 tareas,
