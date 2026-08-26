@@ -52,6 +52,16 @@ export class AuthService {
   }
 
   buildUserContext(user: UserDocument): AuthenticatedUser {
+    // `User.email` es opcional en el schema (ver la nota ahí: un integrante de
+    // "Personal" se puede crear sin email todavía) pero acá siempre debería
+    // venir completo — a este punto ya se autenticó por password o por login
+    // social, y las dos vías (`validateUser`/`loginWithSocialCode`) buscan al
+    // usuario justamente por email, así que uno sin email nunca llega hasta
+    // acá. Si algún día llegara, mejor un error claro que un token roto.
+    if (!user.email) {
+      throw new UnauthorizedException('El usuario no tiene un email asociado');
+    }
+
     const roles = (user.roleIds as unknown as Role[]).filter(
       (role): role is Role => typeof role === 'object' && role !== null && 'nombre' in role,
     );

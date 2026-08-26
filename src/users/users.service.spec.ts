@@ -80,6 +80,82 @@ describe('UsersService', () => {
     expect(createArgs.regimenFiscal).toBe('monotributo');
   });
 
+  it('permite crear un usuario sin email (pedido explícito: "Personal" sin email todavía) sin chequear duplicados', async () => {
+    userModelMock.create.mockResolvedValue({
+      email: undefined,
+      populate: jest.fn().mockResolvedValue(undefined),
+    });
+
+    await service.create(
+      { password: 'password123', nombre: 'Nadia Folgar', roleIds: [] },
+      new Types.ObjectId(),
+    );
+
+    // Sin email no hay nada que chequear por duplicado — ni siquiera se
+    // llama a `findOne` (el índice único de Mongo es `sparse`, así que
+    // varios usuarios sin email conviven sin chocar, ver `user.schema.ts`).
+    expect(userModelMock.findOne).not.toHaveBeenCalled();
+    const createArgs = userModelMock.create.mock.calls[0][0];
+    expect(createArgs.email).toBeUndefined();
+  });
+
+  describe('update', () => {
+    interface MockUser {
+      _id: Types.ObjectId;
+      email?: string;
+      nombre: string;
+      save: jest.Mock;
+    }
+
+    function mockUser(overrides: Partial<MockUser> = {}): MockUser {
+      const user: MockUser = {
+        _id: new Types.ObjectId(),
+        email: undefined,
+        nombre: 'Nadia Folgar',
+        save: jest.fn().mockResolvedValue(undefined),
+        ...overrides,
+      };
+      userModelMock.findById.mockReturnValue({
+        populate: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(user) }),
+      });
+      return user;
+    }
+
+    it('permite completarle el email a un usuario que no tenía (caso "Personal" sin email)', async () => {
+      const user = mockUser();
+      userModelMock.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
+      const updated = await service.update(user._id.toString(), {
+        email: 'Nadia@Folgar.com',
+      });
+
+      expect(updated.email).toBe('nadia@folgar.com');
+      expect(user.save).toHaveBeenCalled();
+    });
+
+    it('rechaza el email nuevo si ya lo tiene otro usuario (antes esta ruta no lo chequeaba)', async () => {
+      const user = mockUser();
+      userModelMock.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ email: 'tomado@folgar.com' }),
+      });
+
+      await expect(
+        service.update(user._id.toString(), { email: 'tomado@folgar.com' } as any),
+      ).rejects.toThrow(ConflictException);
+      expect(user.save).not.toHaveBeenCalled();
+    });
+
+    it('no toca el email si no viene en el body — undefined sigue significando "no tocar"', async () => {
+      const user = mockUser({ email: 'ya@tengo.com' });
+
+      await service.update(user._id.toString(), { nombre: 'Nuevo Nombre' });
+
+      expect(user.email).toBe('ya@tengo.com');
+      expect(user.nombre).toBe('Nuevo Nombre');
+      expect(userModelMock.findOne).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updateOwnProfile', () => {
     function mockSelf(overrides: Partial<Record<string, unknown>> = {}) {
       const self = {

@@ -145,6 +145,18 @@ export class TareaPresentacion {
   @Prop({ required: false, trim: true, maxlength: 300 })
   titulo?: string;
 
+  /**
+   * Quién dio de alta la tarjeta (manual o "Importar tareas desde
+   * documento") — a diferencia de `TareaAdjunto.subidoPor`, este campo no
+   * existía hasta ahora, así que las tarjetas creadas antes de este cambio
+   * quedan sin creador (`undefined`), no con uno inventado. Las tarjetas que
+   * salen de `generarTareasDelMes` (alta automática recurrente, cron o
+   * disparo manual sin un usuario puntual detrás del alta) tampoco lo
+   * llevan — no hay una persona real a la que atribuírselo.
+   */
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  creadoPor?: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'Estudio', required: true, index: true })
   estudioId: Types.ObjectId;
 }

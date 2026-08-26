@@ -10,8 +10,10 @@ import {
 import { RegimenFiscal } from '../../clientes/schemas/cliente.schema';
 
 export class CreateUserDto {
+  /** Opcional — ver el comentario en `user.schema.ts`: sin email no puede loguearse todavía, se completa después. */
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsString()
   @MinLength(8)

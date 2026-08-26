@@ -620,6 +620,57 @@ describe('IvaTareasService', () => {
         ),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('guarda quién confirmó la importación en `creadoPor`, y lo deja sin definir si no se pasa', async () => {
+      const usuarioId = new Types.ObjectId();
+
+      await service.importarTareasDocumento(
+        { clienteId: clienteId.toString(), tareas: [{ titulo: 'Con creador' }] },
+        estudioId,
+        usuarioId,
+      );
+      await service.importarTareasDocumento(
+        { clienteId: clienteId.toString(), tareas: [{ titulo: 'Sin creador' }] },
+        estudioId,
+      );
+
+      expect(docs[0]).toMatchObject({ titulo: 'Con creador', creadoPor: usuarioId });
+      expect(docs[1].creadoPor).toBeUndefined();
+    });
+  });
+
+  describe('createTarea', () => {
+    it('guarda quién dio de alta la tarjeta en `creadoPor`', async () => {
+      const fake = createFakeTareaModel();
+      const fakeAdjunto = createFakeAdjuntoModel();
+      const moduleRef = await Test.createTestingModule({
+        providers: [
+          IvaTareasService,
+          { provide: getModelToken(TareaPresentacion.name), useValue: fake.model },
+          { provide: getModelToken(TareaAdjunto.name), useValue: fakeAdjunto.model },
+          { provide: getModelToken(Cliente.name), useValue: { exists: jest.fn() } },
+          { provide: getModelToken(User.name), useValue: userModelMock },
+          DocumentoTextoExtractorService,
+          { provide: AI_TAREAS_DOCUMENTO_PORT, useValue: aiTareasDocumentoPortMock },
+        ],
+      }).compile();
+      const service = moduleRef.get(IvaTareasService);
+      const estudioId = new Types.ObjectId();
+      const usuarioId = new Types.ObjectId();
+
+      await service.createTarea(
+        {
+          clienteId: new Types.ObjectId().toString(),
+          jurisdiccion: Jurisdiccion.ARCA,
+          periodo: '2026-08',
+        },
+        estudioId,
+        usuarioId,
+      );
+
+      expect(fake.docs).toHaveLength(1);
+      expect(fake.docs[0].creadoPor).toEqual(usuarioId);
+    });
   });
 
   describe('adjuntos', () => {

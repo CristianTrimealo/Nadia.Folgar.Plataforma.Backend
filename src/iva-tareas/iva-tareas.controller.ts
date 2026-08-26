@@ -66,7 +66,11 @@ export class IvaTareasController {
   @Post()
   @Permissions(PERMISSIONS.IVA_TAREAS_WRITE)
   create(@Body() dto: CreateTareaPresentacionDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.ivaTareasService.createTarea(dto, new Types.ObjectId(user.estudioId));
+    return this.ivaTareasService.createTarea(
+      dto,
+      new Types.ObjectId(user.estudioId),
+      new Types.ObjectId(user.userId),
+    );
   }
 
   @Post('generar')
@@ -98,7 +102,11 @@ export class IvaTareasController {
     @Body() dto: ImportarTareasDocumentoDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ivaTareasService.importarTareasDocumento(dto, new Types.ObjectId(user.estudioId));
+    return this.ivaTareasService.importarTareasDocumento(
+      dto,
+      new Types.ObjectId(user.estudioId),
+      new Types.ObjectId(user.userId),
+    );
   }
 
   @Patch(':id/mover')

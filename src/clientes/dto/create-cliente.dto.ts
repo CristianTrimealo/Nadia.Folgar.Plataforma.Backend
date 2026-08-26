@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsEnum,
   IsMongoId,
@@ -39,8 +40,14 @@ export class CreateClienteDto {
   @IsString()
   responsable?: string;
 
-  /** ID de un usuario de "Personal" (`users/`) — ver `responsableId` en `cliente.schema.ts`. */
+  /**
+   * IDs de usuarios de "Personal" (`users/`) — ver `responsableIds` en
+   * `cliente.schema.ts`. Puede ser más de uno; ausente/`[]` = sin nadie
+   * asignado manualmente (igual puede aparecer un admin en
+   * `responsablesEfectivos`, ver el service).
+   */
   @IsOptional()
-  @IsMongoId()
-  responsableId?: string;
+  @IsArray()
+  @IsMongoId({ each: true })
+  responsableIds?: string[];
 }

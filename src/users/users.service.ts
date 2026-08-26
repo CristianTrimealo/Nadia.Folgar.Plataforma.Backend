@@ -38,15 +38,18 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, estudioId: Types.ObjectId): Promise<UserDocument> {
-    const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
-    if (existing) {
-      throw new ConflictException('Ya existe un usuario con ese email');
+    const email = dto.email?.toLowerCase().trim();
+    if (email) {
+      const existing = await this.userModel.findOne({ email }).exec();
+      if (existing) {
+        throw new ConflictException('Ya existe un usuario con ese email');
+      }
     }
 
     const passwordHash = await argon2.hash(dto.password);
 
     const created = await this.userModel.create({
-      email: dto.email.toLowerCase().trim(),
+      email,
       passwordHash,
       nombre: dto.nombre,
       roleIds: dto.roleIds,
@@ -64,7 +67,26 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto): Promise<UserDocument> {
     const user = await this.findOne(id);
-    Object.assign(user, dto);
+
+    // Mismo chequeo de duplicado que ya tenía `updateOwnProfile` — acá no
+    // existía (el `Object.assign` de abajo se lo hubiera dejado directo a
+    // Mongo, que sí lo iba a rechazar por el índice único, pero con un
+    // `MongoServerError` crudo en vez de un `ConflictException` claro).
+    // Necesario desde que "Personal" permite completar el email más tarde
+    // vía `PATCH /users/:id` (antes ese campo no se tocaba nunca desde acá).
+    const { email: emailDto, ...resto } = dto;
+    if (emailDto !== undefined) {
+      const email = emailDto?.toLowerCase().trim() || undefined;
+      if (email && email !== user.email) {
+        const existing = await this.userModel.findOne({ email, _id: { $ne: user._id } }).exec();
+        if (existing) {
+          throw new ConflictException('Ya existe un usuario con ese email');
+        }
+      }
+      user.email = email;
+    }
+
+    Object.assign(user, resto);
     await user.save();
     return user;
   }
@@ -135,7 +157,7 @@ export class UsersService {
 
     return {
       _id: user._id.toString(),
-      email: user.email,
+      email: user.email ?? null,
       nombre: user.nombre,
       telefono: user.telefono ?? null,
       regimenFiscal: user.regimenFiscal ?? null,
@@ -149,6 +171,13 @@ export class UsersService {
   }
 
   toProfileResponse(user: UserDocument): UserProfile {
+    // Mismo motivo que en `AuthService.buildUserContext`: `email` es opcional
+    // en el schema, pero acá siempre debería estar — "Mi perfil" es del
+    // propio usuario ya autenticado, y solo se autentica quien tiene email.
+    if (!user.email) {
+      throw new UnauthorizedException('El usuario no tiene un email asociado');
+    }
+
     return {
       userId: user._id.toString(),
       email: user.email,

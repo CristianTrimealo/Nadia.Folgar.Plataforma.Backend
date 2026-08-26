@@ -7,7 +7,8 @@
  */
 export interface UserSummary {
   _id: string;
-  email: string;
+  /** `null` cuando todavía no se cargó — ver el comentario en `user.schema.ts`. No puede loguearse hasta tenerlo. */
+  email: string | null;
   nombre: string;
   telefono: string | null;
   regimenFiscal: string | null;

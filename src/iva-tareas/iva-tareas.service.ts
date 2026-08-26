@@ -283,6 +283,7 @@ export class IvaTareasService {
   async importarTareasDocumento(
     dto: ImportarTareasDocumentoDto,
     estudioId: Types.ObjectId,
+    creadoPor?: Types.ObjectId,
   ): Promise<{ creadas: number }> {
     const clienteExiste = await this.clienteModel.exists({ _id: dto.clienteId, estudioId }).exec();
     if (!clienteExiste) {
@@ -303,6 +304,7 @@ export class IvaTareasService {
         estado: EstadoTarea.PENDIENTE,
         posicion: posicion++,
         checklist: (tarea.checklist ?? []).map((texto) => ({ texto, completado: false })),
+        creadoPor,
         estudioId,
       });
       creadas += 1;
@@ -341,6 +343,7 @@ export class IvaTareasService {
       .sort({ estado: 1, posicion: 1 })
       .populate('clienteId', 'nombre cuit regimenFiscal')
       .populate('asignados', 'nombre email')
+      .populate('creadoPor', 'nombre')
       .exec();
 
     return this.enriquecerConAdjuntos(tareas);
@@ -501,6 +504,7 @@ export class IvaTareasService {
         .limit(limit)
         .populate('clienteId', 'nombre cuit regimenFiscal')
         .populate('asignados', 'nombre email')
+        .populate('creadoPor', 'nombre')
         .exec(),
       this.tareaModel.countDocuments(filter).exec(),
     ]);
@@ -519,6 +523,7 @@ export class IvaTareasService {
   async createTarea(
     dto: CreateTareaPresentacionDto,
     estudioId: Types.ObjectId,
+    creadoPor?: Types.ObjectId,
   ): Promise<TareaPresentacionDocument> {
     const estado = dto.estado ?? EstadoTarea.PENDIENTE;
     const posicion = await this.tareaModel.countDocuments({ estudioId, estado }).exec();
@@ -536,6 +541,7 @@ export class IvaTareasService {
       etiquetas: this.mapEtiquetas(dto.etiquetas),
       portadaColor: dto.portadaColor,
       titulo: dto.titulo,
+      creadoPor,
       estudioId,
     });
   }
