@@ -5,6 +5,9 @@ import { RegimenFiscal } from '../../clientes/schemas/cliente.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
+/** Autogestionable desde "Mi perfil" — ver el campo `genero` más abajo. */
+export type Genero = 'masculino' | 'femenino';
+
 @Schema(baseSchemaOptions)
 export class User {
   /**
@@ -93,6 +96,19 @@ export class User {
    * de tamaño (`MAX_AVATAR_BYTES`). Reemplazar por una key/URL de storage
    * real junto con `Documento` cuando se defina el proveedor.
    */
+  /**
+   * Autogestionable desde "Mi perfil" (Frontend) — a diferencia de
+   * `regimenFiscal` (que gestiona el administrador desde "Personal"), este
+   * lo carga cada usuario sobre sí mismo. Pedido explícito del usuario: el
+   * nombre del rol debe mostrarse con la forma correcta según género
+   * ("administrador"/"administradora", "contador"/"contadora") en vez de
+   * quedar siempre en masculino — ver `capitalizarRol` en el Frontend.
+   * Opcional y sin default: mientras nadie lo cargue, el Frontend cae a la
+   * forma masculina.
+   */
+  @Prop({ type: String, enum: ['masculino', 'femenino'], required: false })
+  genero?: Genero;
+
   @Prop({ required: false })
   avatarContentType?: string;
 

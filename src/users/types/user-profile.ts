@@ -8,6 +8,8 @@ export interface UserProfile {
   provincia: string | null;
   ciudad: string | null;
   telefono: string | null;
+  /** Ver `User.genero` — lo autogestiona la propia persona desde acá. */
+  genero: 'masculino' | 'femenino' | null;
   /** `data:<contentType>;base64,<...>` listo para un <img src>, o null si no cargó foto. */
   avatarDataUrl: string | null;
 }

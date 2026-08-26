@@ -95,7 +95,7 @@ const inlineQueueLogger = new Logger('InlineExtractosQueue');
         if (redisQueuesEnabled && redisQueue) return redisQueue;
 
         return {
-          async add(_name: 'procesar', data: ProcesarExtractoJobData): Promise<void> {
+          add(_name: 'procesar', data: ProcesarExtractoJobData): Promise<void> {
             setTimeout(() => {
               void processor
                 .process({ data } as never)
@@ -105,6 +105,7 @@ const inlineQueueLogger = new Logger('InlineExtractosQueue');
                   ),
                 );
             }, 0);
+            return Promise.resolve();
           },
         };
       },

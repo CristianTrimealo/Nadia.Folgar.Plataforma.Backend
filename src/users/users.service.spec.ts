@@ -190,11 +190,13 @@ describe('UsersService', () => {
         nombre: 'Nuevo Nombre',
         telefono: '+54 9 291 123-4567',
         pais: 'Argentina',
+        genero: 'femenino',
       });
 
       expect(updated.nombre).toBe('Nuevo Nombre');
       expect(updated.telefono).toBe('+54 9 291 123-4567');
       expect(updated.pais).toBe('Argentina');
+      expect(updated.genero).toBe('femenino');
       expect(self.save).toHaveBeenCalled();
     });
   });
@@ -260,9 +262,11 @@ describe('UsersService', () => {
         _id: new Types.ObjectId(),
         email: 'yo@folgar.com',
         nombre: 'Yo',
+        genero: 'femenino',
       } as any);
 
       expect(profile.avatarDataUrl).toBeNull();
+      expect(profile.genero).toBe('femenino');
     });
   });
 

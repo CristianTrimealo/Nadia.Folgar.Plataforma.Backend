@@ -1,4 +1,5 @@
-import { IsDateString, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { Genero } from '../schemas/user.schema';
 
 /** Autogestión del propio perfil (pantalla "Mi perfil" del Frontend) — sin `password` ni `roleIds`. */
 export class UpdateProfileDto {
@@ -30,4 +31,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   telefono?: string;
+
+  /** Ver `User.genero` — determina la forma del nombre del rol en el Frontend. */
+  @IsOptional()
+  @IsIn(['masculino', 'femenino'])
+  genero?: Genero;
 }

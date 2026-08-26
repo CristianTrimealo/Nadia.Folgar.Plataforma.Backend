@@ -16,4 +16,11 @@ export interface UserSummary {
   activo: boolean;
   /** `data:<contentType>;base64,<...>` listo para un <img src>, o null si no cargó foto. */
   avatarDataUrl: string | null;
+  /**
+   * `null` mientras la persona no lo cargue en su propio "Mi perfil" — ver
+   * `User.genero`. El Frontend lo usa para mostrar el nombre del rol en la
+   * forma correcta ("administrador"/"administradora") en la tabla de
+   * Personal; sin él, cae a la forma masculina.
+   */
+  genero: 'masculino' | 'femenino' | null;
 }

@@ -117,6 +117,7 @@ export class UsersService {
     if (dto.provincia !== undefined) user.provincia = dto.provincia;
     if (dto.ciudad !== undefined) user.ciudad = dto.ciudad;
     if (dto.telefono !== undefined) user.telefono = dto.telefono;
+    if (dto.genero !== undefined) user.genero = dto.genero;
 
     await user.save();
     return user;
@@ -167,6 +168,7 @@ export class UsersService {
         user.avatarContentType && user.avatarBase64
           ? `data:${user.avatarContentType};base64,${user.avatarBase64}`
           : null,
+      genero: user.genero ?? null,
     };
   }
 
@@ -187,6 +189,7 @@ export class UsersService {
       provincia: user.provincia ?? null,
       ciudad: user.ciudad ?? null,
       telefono: user.telefono ?? null,
+      genero: user.genero ?? null,
       avatarDataUrl:
         user.avatarContentType && user.avatarBase64
           ? `data:${user.avatarContentType};base64,${user.avatarBase64}`
