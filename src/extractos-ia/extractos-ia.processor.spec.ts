@@ -17,6 +17,28 @@ import { PlanCuentasService } from '../plan-cuentas/plan-cuentas.service';
 import { ReglasClasificacionService } from '../reglas-clasificacion/reglas-clasificacion.service';
 import { AiProviderResolverService } from '../configuracion/ai-provider-resolver.service';
 import { ProveedorIA } from '../common/enums/proveedor-ia.enum';
+import { filtrarFilasNoTransaccionales } from './validacion-saldo';
+
+describe('filtrarFilasNoTransaccionales', () => {
+  it('excluye filas de "Saldo Inicial"/"Saldo Final"/"Saldo Anterior"', () => {
+    const movimientos = [
+      { concepto: 'Saldo Inicial' },
+      { concepto: 'saldo final' },
+      { concepto: 'Saldo Anterior al 01/07' },
+      { concepto: 'Pago comercios first data master nro.liq. 00210181' },
+    ];
+
+    expect(filtrarFilasNoTransaccionales(movimientos)).toEqual([
+      { concepto: 'Pago comercios first data master nro.liq. 00210181' },
+    ]);
+  });
+
+  it('no excluye un movimiento real cuyo concepto mencione "saldo" en otra posición', () => {
+    const movimientos = [{ concepto: 'Ajuste de saldo por diferencia de cambio' }];
+
+    expect(filtrarFilasNoTransaccionales(movimientos)).toEqual(movimientos);
+  });
+});
 
 describe('ExtractosIaProcessor', () => {
   let processor: ExtractosIaProcessor;
@@ -246,6 +268,42 @@ describe('ExtractosIaProcessor', () => {
       expect(instance.movimientos.every((m: any) => m.validacionSaldo === ValidacionSaldo.OK)).toBe(
         true,
       );
+      expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
+    });
+
+    it('descarta la fila "Saldo Inicial" colada por la IA como movimiento en vez de duplicar el saldo calculado', async () => {
+      const instance = buildExtractoInstance();
+      extractoModelMock.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(instance) });
+      pdfTextExtractorMock.extraer.mockResolvedValue({ texto: 'texto', tieneCapaDeTexto: true });
+      fakePort.extraerMovimientos.mockResolvedValue({
+        exitoso: true,
+        saldoInicialDeclarado: 47670.26,
+        saldoFinalDeclarado: 127149.67,
+        reglasSugeridas: [],
+        movimientos: [
+          {
+            fecha: '29/06/24',
+            concepto: 'Saldo Inicial',
+            monto: 47670.26,
+            tipo: null,
+            saldoDespues: 47670.26,
+          },
+          {
+            fecha: '01/07/24',
+            concepto: 'Pago comercios frst data master nro.liq. 00210181/0015956286',
+            monto: 79479.41,
+            tipo: 'credito',
+            saldoDespues: 127149.67,
+          },
+        ],
+      });
+
+      await processor.process(buildJob());
+
+      expect(instance.movimientos).toHaveLength(1);
+      expect(instance.movimientos[0].concepto).toContain('Pago comercios');
+      expect(instance.movimientos[0].saldoCalculado).toBe(127149.67);
+      expect(instance.movimientos[0].validacionSaldo).toBe(ValidacionSaldo.OK);
       expect(instance.estado).toBe(EstadoExtracto.PROCESADO);
     });
 

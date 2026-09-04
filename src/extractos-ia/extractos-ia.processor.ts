@@ -34,6 +34,7 @@ import {
   contarDiferencias,
   describirDiferencias,
   determinarEstadoFinal,
+  filtrarFilasNoTransaccionales,
 } from './validacion-saldo';
 
 export interface ProcesarExtractoJobData {
@@ -178,7 +179,7 @@ export class ExtractosIaProcessor extends WorkerHost {
       reglasSugeridas = resultado.reglasSugeridas ?? [];
 
       let movimientos = construirMovimientosConValidacion(
-        this.mapearExtraidos(resultado.movimientos),
+        this.mapearExtraidos(filtrarFilasNoTransaccionales(resultado.movimientos)),
         resultado.saldoInicialDeclarado,
       );
 
@@ -196,7 +197,7 @@ export class ExtractosIaProcessor extends WorkerHost {
 
         if (reintento.exitoso) {
           const movimientosReintento = construirMovimientosConValidacion(
-            this.mapearExtraidos(reintento.movimientos),
+            this.mapearExtraidos(filtrarFilasNoTransaccionales(reintento.movimientos)),
             reintento.saldoInicialDeclarado,
           );
           if (contarDiferencias(movimientosReintento) < contarDiferencias(movimientos)) {

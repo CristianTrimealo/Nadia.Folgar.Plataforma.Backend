@@ -27,6 +27,22 @@ function redondear(valor: number): number {
   return Math.round(valor * 100) / 100;
 }
 
+const PATRON_FILA_NO_TRANSACCIONAL = /^saldo\s+(inicial|final|anterior)\b/i;
+
+/**
+ * Filtra filas que la IA a veces incluye por error como "movimiento" pero en
+ * realidad repiten el saldo (ej. "Saldo Inicial"/"Saldo Final" impreso como
+ * encabezado o pie de la tabla del banco) — esa info ya se captura aparte en
+ * saldoInicialDeclarado/saldoFinalDeclarado. Si se dejan pasar, signedDelta()
+ * las suma como si fueran un movimiento real y duplica el saldo calculado en
+ * cascada para el resto del extracto.
+ */
+export function filtrarFilasNoTransaccionales<T extends { concepto: string }>(
+  movimientos: T[],
+): T[] {
+  return movimientos.filter((m) => !PATRON_FILA_NO_TRANSACCIONAL.test(m.concepto.trim()));
+}
+
 /**
  * Validación de saldo determinística — nunca delegada a la IA. Extraída como
  * funciones puras (en vez de vivir en `ExtractosIaService`) porque la usan

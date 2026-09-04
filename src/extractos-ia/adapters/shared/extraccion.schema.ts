@@ -59,7 +59,7 @@ Para cada movimiento:
 - "numeroComprobante": el número de comprobante/operación si el extracto lo imprime, si no null.
 - "saldoDespues": el saldo en cuenta que el extracto declara para ESA fila específica (columna "Saldo" o "Saldo en cuenta"), si el banco lo imprime línea por línea. Si el banco no imprime un saldo corrido por fila, usá null — no lo calcules vos.
 
-Además, si el extracto tiene una fila explícita de "Saldo Inicial" en el encabezado, informala en "saldoInicialDeclarado". Si tiene un saldo final de cierre/resumen, informalo en "saldoFinalDeclarado". Si no aparecen impresos, usá null — no los calcules.
+Además, si el extracto tiene una fila explícita de "Saldo Inicial" en el encabezado, informala en "saldoInicialDeclarado". Si tiene un saldo final de cierre/resumen, informalo en "saldoFinalDeclarado". Si no aparecen impresos, usá null — no los calcules. Esas filas de "Saldo Inicial"/saldo final NO van en "movimientos" — es información de encabezado/pie, no un movimiento; incluirla ahí como una fila más duplica el saldo calculado.
 
 Es crítico que los montos y saldos sean exactamente los que están impresos, sin errores de transcripción — de esto depende una validación contable automática posterior.
 
